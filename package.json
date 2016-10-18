@@ -1,0 +1,17 @@
+{
+  "name": "relay",
+  "version": "2.0.0",
+  "description": "Packet-orientated reliable in-order relay",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "Mark K Cowan",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "byte-stream": "github:battlesnake/byte-stream",
+    "eventemitter": "github:battlesnake/eventemitter",
+    "lodash": "^4.16.4"
+  }
+}

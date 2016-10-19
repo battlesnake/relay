@@ -42,7 +42,7 @@ function Server(opts) {
 			clients.add(client);
 			this.emit('info', `Registering client ${client.getName()}`);
 		};
-	   
+
 		const onClose = () => {
 			clients.remove(client);
 			this.emit('info', `Unregistering client ${client.getName()}`);

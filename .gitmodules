@@ -1,0 +1,3 @@
+[submodule "ctcp"]
+	path = ctcp
+	url = git@git.open-cosmos.com:ctcp.git

@@ -72,6 +72,7 @@ function Session(socket, opts) {
 
 	let authTimer = setTimeout(authFailed, NAME_TIMEOUT);
 
+	socket.on('data', console.log);
 	socket.on('data', buf => reader.write(buf));
 	reader.on('data', onData);
 

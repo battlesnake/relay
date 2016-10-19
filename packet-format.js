@@ -33,34 +33,40 @@ function Reader() {
 	let packet = newPacket();
 
 	const streamOnData = () => {
+		while (readPacket()) {
+			this.emit('data', packet);
+			packet = newPacket();
+		}
+	};
+
+	const readPacket = () => {
 		if (packet.type === null) {
 			const buf = stream.read(TYPE_LEN);
 			if (!buf) {
-				return;
+				return false;
 			}
 			packet.type = buf.toString('ascii');
 		}
 		if (packet.remote === null) {
 			const buf = stream.read(NAME_LEN);
 			if (!buf) {
-				return;
+				return false;
 			}
 			packet.remote = read_str(buf);
 		}
 		if (packet.length === null) {
 			const buf = stream.read(LENGTH_LEN);
 			if (!buf) {
-				return;
+				return false;
 			}
 			packet.length = buf.readUInt32BE(0);
 		}
 		const buf = stream.read(packet.length);
 		if (!buf) {
-			return;
+			return false;
 		}
 		packet.data = buf;
-		this.emit('data', packet);
-		packet = newPacket();
+		return true;
 	};
 
 	stream.on('data', streamOnData);

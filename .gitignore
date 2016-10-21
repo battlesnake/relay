@@ -3,3 +3,4 @@
 node_modules/
 c_modules/
 *.out
+tags

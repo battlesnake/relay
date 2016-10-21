@@ -5,9 +5,11 @@
 
 void relay_make_packet(struct relay_packet *out, const char *type, const char *endpoint, const char *data, ssize_t length)
 {
-	memset(out, 0, sizeof(*out));
-	out->type = type;
-	out->endpoint = endpoint;
+	out->type[RELAY_TYPE_LENGTH] = 0;
+	strncpy(out->type, type, RELAY_TYPE_LENGTH);
+	out->endpoint[RELAY_ENDPOINT_LENGTH] = 0;
+	strncpy(out->endpoint, endpoint, RELAY_ENDPOINT_LENGTH);
+
 	if (length < 0) {
 		length = strlen(data);
 	}
@@ -18,15 +20,18 @@ void relay_make_packet(struct relay_packet *out, const char *type, const char *e
 /* Creates serialised packet, original can be freed after */
 struct relay_packet_serial *relay_serialise_packet(const struct relay_packet *in, size_t *out_size)
 {
-	struct relay_packet_serial *p;
-	const size_t out_len = sizeof(*p) + in->length;
-	p = malloc(out_len);
-	strncpy(p->type, in->type, sizeof(p->type));
-	strncpy(p->endpoint, in->endpoint, sizeof(p->endpoint));
-	p->length = htonl(in->length);
-	memcpy(p->data, in->data, in->length);
+	struct relay_packet_serial *out;
+	size_t out_len = sizeof(*out) + in->length;
+	out = malloc(out_len);
+
+	strncpy(out->type, in->type, RELAY_TYPE_LENGTH);
+	strncpy(out->endpoint, in->endpoint, RELAY_ENDPOINT_LENGTH);
+
+	out->length = htonl(in->length);
+	memcpy(out->data, in->data, in->length);
 	*out_size = out_len;
-	return p;
+
+	return out;
 }
 
 /* Creates deserialised packet, pointing to fields within serial packet */
@@ -35,8 +40,12 @@ bool relay_deserialise_packet(struct relay_packet *out, const struct relay_packe
 	if (in_length < sizeof(*in)) {
 		return false;
 	}
-	out->type = in->type;
-	out->endpoint = in->endpoint;
+
+	out->type[RELAY_TYPE_LENGTH] = 0;
+	strncpy(out->type, in->type, RELAY_TYPE_LENGTH);
+	out->endpoint[RELAY_ENDPOINT_LENGTH] = 0;
+	strncpy(out->endpoint, in->endpoint, RELAY_ENDPOINT_LENGTH);
+
 	out->length = ntohl(in->length);
 	out->data = in->data;
 	return in_length == (sizeof(*in) + out->length);

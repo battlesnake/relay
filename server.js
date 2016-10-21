@@ -69,5 +69,5 @@ if (!module.parent) {
 	const port = +process.env.PORT || 49501;
 	const server = new Server(port);
 	server.on('info', console.info);
-	server.on('error', console.error);
+	server.on('error', err => process.env.DEBUG ? console.error(err) : console.error('ERROR: ' + err.message));
 }

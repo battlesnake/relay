@@ -1,6 +1,6 @@
 sources := $(wildcard *.c) $(shell find c_modules -name '*.c' -and -not -name '*_example.c')
 
-.PHONY: clean
+.PHONY: clean tags demo
 
 demo: client_example.out
 
@@ -8,7 +8,10 @@ client_example.out: $(sources)
 	gcc -std=gnu99 -Og -lpthread -Ic_modules -DDEMO=relay -DDEMO_relay -Wall -Werror -Wextra -o $@ $^
 
 clean:
-	rm -f -- *.out
+	rm -f -- *.out tags
+
+tags:
+	ctags -R
 
 demo0: demo
 	@echo -e '\e[32;1mFilter\e[0m'

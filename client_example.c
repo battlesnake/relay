@@ -54,11 +54,8 @@ int main(int argc, char *argv[])
 				relay_client_destroy(&client);
 				return 3;
 			}
-		} else if (strncmp(p->type, "ECHO", 4) == 0) {
-			fprintf(stderr, "Echo received from %4.4s: %.*s\n", p->endpoint, (int) p->length, p->data);
-		} else {
-			fprintf(stderr, "Unknown packet received: \"%4.4s\"\n", p->type);
 		}
+		fprintf(stderr, "Packet of type '%s' received from <%s>: %s\n", p->type, p->endpoint, p->data);
 		free(p);
 	}
 	return 0;

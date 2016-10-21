@@ -4,18 +4,21 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* Contains pointers to strings/data, does not store inside the struct */
+#define RELAY_TYPE_LENGTH 4
+#define RELAY_ENDPOINT_LENGTH 8
+
+/* Contains pointers to data, does not store inside the struct */
 struct relay_packet {
-	const char *type;
-	const char *endpoint;
+	char type[RELAY_TYPE_LENGTH + 1];
+	char endpoint[RELAY_ENDPOINT_LENGTH + 1];
 	size_t length;
 	const char *data;
 };
 
 /* Wire-format: all data is packaged in the struct */
 struct __attribute__((__packed__)) relay_packet_serial {
-	char type[4];
-	char endpoint[8];
+	char type[RELAY_TYPE_LENGTH];
+	char endpoint[RELAY_ENDPOINT_LENGTH];
 	uint32_t length;
 	char data[];
 };

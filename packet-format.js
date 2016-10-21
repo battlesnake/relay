@@ -11,7 +11,16 @@ const LENGTH_OFFSET = NAME_OFFSET + NAME_LEN;
 const DATA_OFFSET = LENGTH_OFFSET + LENGTH_LEN;
 
 /* Read null-terminated ASCII string from buffer */
-const read_str = buf => buf.slice(0, buf.indexOf(0)).toString('ascii');
+const read_str = buf => {
+	let len = buf.indexOf(0);
+	if (len === -1) {
+		len = buf.length;
+	}
+	return buf.slice(0, len).toString('ascii');
+};
+
+const write_str = (buf, str, offset, length) =>
+	buf.write(str.substr(0, length), offset, Math.min(str.length, length), 'ascii');
 
 module.exports.Reader = Reader;
 module.exports.Writer = Writer;
@@ -45,7 +54,7 @@ function Reader() {
 			if (!buf) {
 				return false;
 			}
-			packet.type = buf.toString('ascii');
+			packet.type = read_str(buf);
 		}
 		if (packet.remote === null) {
 			const buf = stream.read(NAME_LEN);
@@ -74,19 +83,19 @@ function Reader() {
 }
 
 Writer.prototype = new EventEmitter();
-function Writer(stream) {
+function Writer() {
 	EventEmitter.call(this);
 
 	const write = packet => {
 		let { type, remote, length = packet.data.length, data = null } = packet;
 		if (typeof type !== 'string' || type.length > TYPE_LEN) {
-			throw new Error('Invalid packet type');
+			throw new Error('Invalid packet type: ' + JSON.stringify(type));
 		}
-		if (typeof remote !== 'string' || remote.length >= NAME_LEN) {
-			throw new Error('Invalid packet remote');
+		if (typeof remote !== 'string' || remote.length > NAME_LEN) {
+			throw new Error('Invalid packet remote: ' + JSON.stringify(remote));
 		}
 		if (typeof length !== 'number' || length < 0) {
-			throw new Error('Invalid packet length');
+			throw new Error('Invalid packet length: ' + JSON.stringify(length));
 		}
 		if (typeof data === 'string') {
 			data = Buffer.from(data);
@@ -98,9 +107,9 @@ function Writer(stream) {
 		if (data.length !== length) {
 			throw new Error('Packet length mismatch');
 		}
-		const buf = new Buffer(DATA_OFFSET + length);
-		buf.write(type, TYPE_OFFSET, TYPE_LEN, 'ascii');
-		buf.write(remote + '\0', NAME_OFFSET, NAME_LEN, 'ascii');
+		const buf = Buffer.alloc(DATA_OFFSET + length, 0);
+		write_str(buf, type, TYPE_OFFSET, TYPE_LEN);
+		write_str(buf, remote, NAME_OFFSET, NAME_LEN);
 		buf.writeUInt32BE(length, LENGTH_OFFSET);
 		data.copy(buf, DATA_OFFSET);
 		this.emit('data', buf);

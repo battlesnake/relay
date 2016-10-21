@@ -3,7 +3,7 @@ sources := $(filter-out %_example.c, $(wildcard *.c) $(shell find c_modules -typ
 .PHONY: clean
 
 client.out: $(sources)
-	gcc -std=gnu99 -Og -lpthread -Ic_modules -DDEMO=relay -DDEMO_relay -o $@ $^
+	gcc -std=gnu99 -Og -lpthread -Ic_modules -DDEMO=relay -DDEMO_relay -Wall -Werror -Wextra -o $@ $^
 
 clean:
 	rm -f -- *.out

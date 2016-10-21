@@ -13,6 +13,7 @@ int relay_client_init(struct relay_client *self, const char *name, const char *a
 		socket_client_destroy(&self->socket);
 		return RCI_AUTH_FAILED;
 	}
+	return 0;
 }
 
 void relay_client_destroy(struct relay_client *self)

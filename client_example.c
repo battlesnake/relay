@@ -11,16 +11,9 @@
 #include "relay_packet.h"
 #include "relay_client.h"
 
-static struct relay_client client;
+#if defined DEMO_relay
 
-void socket_error(const char *format, ...)
-{
-	va_list args;
-	va_start(args, format);
-	vfprintf(stderr, format, args);
-	va_end(args);
-	fprintf(stderr, "\n");
-}
+static struct relay_client client;
 
 int main(int argc, char *argv[])
 {
@@ -35,7 +28,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Invalid port: %s\n", argv[2]);
 		return 1;
 	}
-	if (!relay_client_init(&client, name, addr, port)) {
+	if (relay_client_init(&client, name, addr, port) != 0) {
 		fprintf(stderr, "Failed to connect to %s:%d\n", addr, port);
 		return 2;
 	}
@@ -70,3 +63,4 @@ int main(int argc, char *argv[])
 	}
 	return 0;
 }
+#endif

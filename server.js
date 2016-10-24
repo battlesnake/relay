@@ -61,13 +61,16 @@ function Server(opts) {
 	};
 
 	const server = net.createServer(accept);
+	server.on('listening', () => this.emit('listening'));
 
 	server.listen(opts.port);
 }
 
 if (!module.parent) {
+	const host = process.env.HOST || '0.0.0.0';
 	const port = +process.env.PORT || 49501;
-	const server = new Server(port);
+	const server = new Server(port, host);
+	server.on('listening', () => console.log(`Listening on ${host}:${port}`));
 	server.on('info', console.info);
 	server.on('error', err => process.env.DEBUG ? console.error(err) : console.error('ERROR: ' + err.message));
 }

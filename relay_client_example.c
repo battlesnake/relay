@@ -11,7 +11,7 @@
 #include "relay_packet.h"
 #include "relay_client.h"
 
-#if defined DEMO_relay
+#if defined DEMO_relay_client
 
 static struct relay_client client;
 

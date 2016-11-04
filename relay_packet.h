@@ -34,6 +34,10 @@ struct relay_packet_serial *relay_make_serialised_packet(const char *type, const
 /* Encode data into packet (store pointer to data, don't copy in) */
 void relay_make_packet(struct relay_packet *out, const char *type, const char *endpoint, char *data, ssize_t length);
 
+/* Explode a packet, returns actual length of data, even if buf was too small */
+size_t relay_explode_packet(struct relay_packet *packet, char *type, char *endpoint, char *buf, size_t buf_size);
+size_t relay_explode_serialised_packet(struct relay_packet_serial *packet, char *type, char *endpoint, char *buf, size_t buf_size);
+
 /* Number of bytes required for serialised packet */
 size_t relay_serialised_packet_size(size_t in_size);
 

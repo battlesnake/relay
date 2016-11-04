@@ -63,3 +63,50 @@ bool relay_deserialise_packet(struct relay_packet *out, struct relay_packet_seri
 	out->data = in->data;
 	return in_length == (sizeof(*in) + out->length);
 }
+
+size_t relay_explode_packet(struct relay_packet *packet, char *type, char *endpoint, char *buf, size_t buf_size)
+{
+	if (packet == NULL) {
+		return -1;
+	}
+	if (type) {
+		strcpy(type, packet->type);
+	}
+	if (endpoint) {
+		strcpy(endpoint, packet->endpoint);
+	}
+	if (buf) {
+		size_t bytes = packet->length + 1;
+		if (bytes > buf_size) {
+			bytes = buf_size;
+		}
+		memcpy(buf, packet->data, bytes);
+	}
+	return packet->length;
+}
+
+size_t relay_explode_serialised_packet(struct relay_packet_serial *packet, char *type, char *endpoint, char *buf, size_t buf_size)
+{
+	if (packet == NULL) {
+		return -1;
+	}
+	if (type) {
+		int len = strnlen(packet->header.type, 4);
+		memcpy(type, packet->header.type, len);
+		type[len] = 0;
+	}
+	if (endpoint) {
+		int len = strnlen(packet->header.endpoint, 4);
+		memcpy(endpoint, packet->header.endpoint, len);
+		endpoint[len] = 0;
+	}
+	size_t length = ntohl(packet->header.length);
+	if (buf) {
+		size_t bytes = length + 1;
+		if (bytes > buf_size) {
+			bytes = buf_size;
+		}
+		memcpy(buf, packet->data, bytes);
+	}
+	return length;
+}

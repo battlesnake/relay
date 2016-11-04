@@ -9,18 +9,88 @@
 
 size_t relay_client_mtu = 1L << 31;
 
-static void __attribute__((__noreturn__)) invalid_type()
+/* Socket adapter */
+
+struct rca_socket_data {
+	struct socket_client socket;
+};
+
+static bool rca_socket_init(struct relay_client *self, const void *initargs)
 {
-	debug_log("Invalid type, is client initialised?");
-	abort();
+	struct rca_socket_data *this = self->data;
+	const struct relay_client_socket_data *args = initargs;
+	/* Connect and configure socket */
+	if (!socket_client_init(&this->socket, args->addr, args->port, NULL)) {
+		return false;
+	}
+	setsockopt_nodelay(this->socket.fd);
+	setsockopt_keepalive(this->socket.fd);
+	/* Authenticate if name was provided */
+	if (self->name[0] && !relay_client_send_packet(self, "AUTH", "", self->name, -1)) {
+		return false;
+	}
+	return true;
 }
 
-/* POSIX: Write entire buffer */
-static bool buf_write(int fd, const void *buf, size_t length)
+static void rca_socket_destroy(struct relay_client *self)
 {
+	struct rca_socket_data *this = self->data;
+	socket_client_destroy(&this->socket);
+}
+
+static bool rca_socket_send(struct relay_client *self, const void *buf, size_t length)
+{
+	struct rca_socket_data *this = self->data;
+	return socket_client_send(&this->socket, buf, length);
+}
+
+static bool rca_socket_recv(struct relay_client *self, void *buf, size_t length)
+{
+	struct rca_socket_data *this = self->data;
+	return socket_client_peek(&this->socket, buf, length) && socket_client_recv(&this->socket, buf, length);
+}
+
+const struct relay_client_adapter relay_client_socket_adapter = {
+	.init = rca_socket_init,
+	.destroy = rca_socket_destroy,
+	.send = rca_socket_send,
+	.recv = rca_socket_recv,
+	.instdata_size = sizeof(struct rca_socket_data)
+};
+
+/* File-descriptor adapter */
+
+struct rca_fd_data {
+	int fd;
+	bool owns_fd;
+};
+
+static bool rca_fd_init(struct relay_client *self, const void *initargs)
+{
+	struct rca_fd_data *this = self->data;
+	const struct relay_client_fd_data *args = initargs;
+	if (this->fd < 0) {
+		return false;
+	}
+	this->fd = args->fd;
+	this->owns_fd = args->owns;
+	return true;
+}
+
+static void rca_fd_destroy(struct relay_client *self)
+{
+	struct rca_fd_data *this = self->data;
+	if (this->owns_fd) {
+		close(this->fd);
+	}
+}
+
+static bool rca_fd_send(struct relay_client *self, const void *buf, size_t length)
+{
+	struct rca_fd_data *this = self->data;
 	const char *ptr = buf;
 	while (length) {
-		ssize_t bytes = write(fd, ptr, length);
+		ssize_t bytes = write(this->fd, ptr, length);
 		if (bytes == -1 || bytes == 0) {
 			return false;
 		}
@@ -30,12 +100,12 @@ static bool buf_write(int fd, const void *buf, size_t length)
 	return true;
 }
 
-/* POSIX: Read entire buffer */
-static bool buf_read(int fd, void *buf, size_t length)
+static bool rca_fd_recv(struct relay_client *self, void *buf, size_t length)
 {
+	struct rca_fd_data *this = self->data;
 	char *ptr = buf;
 	while (length) {
-		ssize_t bytes = read(fd, ptr, length);
+		ssize_t bytes = read(this->fd, ptr, length);
 		if (bytes == -1 || bytes == 0) {
 			return false;
 		}
@@ -45,23 +115,15 @@ static bool buf_read(int fd, void *buf, size_t length)
 	return true;
 }
 
-static bool relay_client_do_write(struct relay_client *self, const void *buf, const size_t length)
-{
-	switch (self->type) {
-	case RELAY_CLIENT_FD: return buf_write(self->fd, buf, length);
-	case RELAY_CLIENT_TCP: return socket_client_send(&self->socket, buf, length);
-	default: invalid_type();
-	}
-}
+const struct relay_client_adapter relay_client_fd_adapter = {
+	.init = rca_fd_init,
+	.destroy = rca_fd_destroy,
+	.send = rca_fd_send,
+	.recv = rca_fd_recv,
+	.instdata_size = sizeof(struct rca_fd_data)
+};
 
-static bool relay_client_do_read(struct relay_client *self, void *buf, size_t length)
-{
-	switch (self->type) {
-	case RELAY_CLIENT_FD: return buf_read(self->fd, buf, length);
-	case RELAY_CLIENT_TCP: return socket_client_peek(&self->socket, buf, length) && socket_client_recv(&self->socket, buf, length);
-	default: invalid_type();
-	}
-}
+/* I/O */
 
 static bool relay_client_write(struct relay_client *self, const void *buf, const size_t length)
 {
@@ -70,7 +132,7 @@ static bool relay_client_write(struct relay_client *self, const void *buf, const
 		return false;
 	}
 	debug_log_v("Writing %lu bytes\n", (long) length);
-	bool res = relay_client_do_write(self, buf, length);
+	bool res =  self->adapter->send(self, buf, length);
 	debug_log_v("Written %lu bytes\n", (long) length);
 	if (!res) {
 		debug_log("Write failed (errno=%d, bytes=%lu)\n", errno, (long) length);
@@ -89,7 +151,7 @@ static bool relay_client_read(struct relay_client *self, void *buf, size_t lengt
 	ioctl(self->fd, FIONREAD, &waiting);
 	debug_log_v("Reading %lu bytes (%lu available)\n", (long) length, (long) waiting);
 #endif
-	bool res = relay_client_do_read(self, buf, length);
+	bool res = self->adapter->recv(self, buf, length);
 	debug_log_v("Read %lu bytes\n", (long) length);
 	if (!res) {
 		debug_log("Read failed (errno=%d, bytes=%lu)\n", errno, (long) length);
@@ -97,62 +159,70 @@ static bool relay_client_read(struct relay_client *self, void *buf, size_t lengt
 	return res;
 }
 
-static void relay_client_init_base(struct relay_client *self, int type)
+/* Convenience constructors */
+
+bool relay_client_init_socket(struct relay_client *self, const char *name, const char *addr, const uint16_t port)
 {
-	self->failed = 0;
+	struct relay_client_socket_data args = {
+		.addr = addr,
+		.port = port
+	};
+	return relay_client_init(self, name, &relay_client_socket_adapter, &args);
+}
+
+bool relay_client_init_fd(struct relay_client *self, const char *name, int fd, bool owns)
+{
+	struct relay_client_fd_data args = {
+		.fd = fd,
+		.owns = owns
+	};
+	return relay_client_init(self, name, &relay_client_fd_adapter, &args);
+}
+
+/* Life-cycle */
+
+bool relay_client_init(struct relay_client *self, const char *name, const struct relay_client_adapter *adapter, const void *args)
+{
+	/* Zero-init */
+	memset(self, 0, sizeof(*self));
+	/* Copy name in, if one was provided */
+	if (name != NULL) {
+		int len = strnlen(name, RELAY_ENDPOINT_LENGTH + 1);
+		if (len == RELAY_ENDPOINT_LENGTH + 1) {
+			goto fail;
+		}
+		memcpy(self->name, name, len);
+	}
+	/* Other config */
 	self->mtu = relay_client_mtu;
-	self->type = type;
-}
-
-int relay_client_init(struct relay_client *self, const char *name, const char *addr, const uint16_t port)
-{
-	int res = 0;
-	relay_client_init_base(self, RELAY_CLIENT_TCP);
-	if (!socket_client_init(&self->socket, addr, port, NULL)) {
-		res = RCI_CONNECT_FAILED;
+	self->adapter = adapter;
+	/* Child constructor */
+	self->data = malloc(adapter->instdata_size);
+	if (!self->data) {
 		goto fail;
 	}
-	setsockopt_nodelay(self->socket.fd);
-	setsockopt_keepalive(self->socket.fd);
-	if (name && !relay_client_send_packet(self, "AUTH", "", name, -1)) {
-		res = RCI_AUTH_FAILED;
-		goto fail2;
+	memset(self->data, 0, adapter->instdata_size);
+	if (!adapter->init(self, args)) {
+		goto child_fail;
 	}
-	return 0;
-fail2:
-	socket_client_destroy(&self->socket);
+	return true;
+child_fail:
+	relay_client_destroy(self);
 fail:
 	self->failed |= RCF_INIT;
-	debug_log("Failed to initialise relay client, error code %d\n", res);
-	return res;
-}
-
-int relay_client_init_fd(struct relay_client *self, const char *name, int fd)
-{
-	int res = 0;
-	relay_client_init_base(self, RELAY_CLIENT_FD);
-	self->fd = fd;
-	if (name && !relay_client_send_packet(self, "AUTH", "", name, -1)) {
-		res = RCI_AUTH_FAILED;
-		goto fail;
-	}
-	return 0;
-fail:
-	self->failed |= RCF_INIT;
-	debug_log("Failed to initialise relay client, error code %d\n", res);
-	return res;
+	return false;
 }
 
 void relay_client_destroy(struct relay_client *self)
 {
-	switch (self->type) {
-	case 0: return;
-	case RELAY_CLIENT_FD: close(self->fd); break;
-	case RELAY_CLIENT_TCP: socket_client_destroy(&self->socket); break;
-	default: invalid_type();
+	if (!self->adapter) {
+		return;
 	}
-	self->type = 0;
+	self->adapter->destroy(self);
+	self->adapter = NULL;
 }
+
+/* Writing */
 
 bool relay_client_send_text(struct relay_client *self, const char *type, const char *endpoint, const char *text)
 {
@@ -186,6 +256,8 @@ bool relay_client_send_packet3(struct relay_client *self, const struct relay_pac
 	return relay_client_write(self, packet, total_length);
 }
 
+/* Reading */
+
 static ssize_t relay_client_read_hdr(struct relay_client *self)
 {
 	if (!self->has_header) {
@@ -210,6 +282,32 @@ static bool relay_client_read_payload(struct relay_client *self, struct relay_pa
 	self->has_header = false;
 	memcpy(ps, &self->hdr, sizeof(self->hdr));
 	return true;
+}
+
+struct relay_packet_serial *relay_client_recv_serialised_packet(struct relay_client *self)
+{
+	ssize_t data_length = relay_client_read_hdr(self);
+	if (data_length == -1) {
+		return NULL;
+	}
+	struct relay_packet_serial *ps;
+	size_t in_length = sizeof(self->hdr) + data_length;
+	/* MTU/max-size check */
+	if (in_length > self->mtu) {
+		self->failed |= RCF_RECV_TOO_LARGE;
+		debug_log("Attempted to receive packet larger (%lu) than client MTU (%lu)\n", (long) in_length, (long) self->mtu);
+		return NULL;
+	}
+	/* Add extra byte for null-terminator */
+	size_t alloc_length = sizeof(*ps) + data_length + 1;
+	ps = malloc(alloc_length);
+	/* Add null-terminator to after received data block */
+	ps->data[data_length] = 0;
+	if (!relay_client_read_payload(self, ps)) {
+		free(ps);
+		return NULL;
+	}
+	return ps;
 }
 
 struct relay_packet *relay_client_recv_packet(struct relay_client *self)
@@ -249,4 +347,12 @@ struct relay_packet *relay_client_recv_packet(struct relay_client *self)
 	}
 	relay_deserialise_packet(&tuple->p, &tuple->ps, in_length);
 	return &tuple->p;
+}
+
+ssize_t relay_client_recv_data(struct relay_client *self, char *type, char *endpoint, char *buf, size_t buf_size)
+{
+	struct relay_packet_serial *packet = relay_client_recv_serialised_packet(self);
+	ssize_t res = relay_explode_serialised_packet(packet, type, endpoint, buf, buf_size);
+	free(packet);
+	return res;
 }

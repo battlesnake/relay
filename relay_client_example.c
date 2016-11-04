@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Invalid port: %s\n", argv[2]);
 		return 1;
 	}
-	if (relay_client_init(&client, name, addr, port) != 0) {
+	if (!relay_client_init_socket(&client, name, addr, port) != 0) {
 		fprintf(stderr, "Failed to connect to %s:%d\n", addr, port);
 		return 2;
 	}

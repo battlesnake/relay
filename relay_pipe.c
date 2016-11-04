@@ -42,10 +42,10 @@ static void *pipe_thread(struct relay_pipe *inst)
 			debug_log("Pipe failed to receive packet\n");
 			break;
 		}
-		if (!inst->tap || inst->tap(&packet)) {
+		if (!inst->tap || inst->tap(&packet, inst->misc)) {
 			debug_log_v("Pipe accepted a packet\n");
 			if (!relay_client_send_packet2(&inst->writer, packet)) {
-				inst->failed = RPF_THREAD;
+				inst->failed |= RPI_THREAD_FAILED;
 				break;
 			}
 		} else {
@@ -58,10 +58,11 @@ static void *pipe_thread(struct relay_pipe *inst)
 	return NULL;
 }
 
-int relay_pipe_init(struct relay_pipe *inst, int fd_in, int fd_out, relay_pipe_tap *tap)
+bool relay_pipe_init(struct relay_pipe *inst, int fd_in, int fd_out, bool owns, relay_pipe_tap *tap, void *misc)
 {
-	int res = RPI_INIT_FAILED;
 	memset(inst, 0, sizeof(*inst));
+
+	inst->misc = misc;
 
 	inst->fd_in = fd_in;
 	inst->fd_out = fd_out;
@@ -85,26 +86,26 @@ int relay_pipe_init(struct relay_pipe *inst, int fd_in, int fd_out, relay_pipe_t
 		}
 	}
 
-	if (relay_client_init_fd(&inst->reader, NULL, fd_in)) {
-		res = RPI_OPEN_INPUT_FAILED;
+	if (!relay_client_init_fd(&inst->reader, NULL, fd_in, owns)) {
+		inst->failed |= RPI_OPEN_INPUT_FAILED;
 		goto fail;
 	}
-	if (relay_client_init_fd(&inst->writer, NULL, fd_out)) {
-		res = RPI_OPEN_OUTPUT_FAILED;
+	if (!relay_client_init_fd(&inst->writer, NULL, fd_out, owns)) {
+		inst->failed |= RPI_OPEN_OUTPUT_FAILED;
 		goto fail;
 	}
 	inst->tap = tap;
 
 	if (pthread_create(&inst->piper, NULL, (void*(*)(void*)) pipe_thread, inst)) {
-		res = RPI_THREAD_FAILED;
+		inst->failed |= RPI_THREAD_FAILED;
 		goto fail;
 	}
 
-	return 0;
+	return true;
 fail:
-	inst->failed = RPF_INIT;
+	inst->failed |= RPI_INIT_FAILED;
 	relay_pipe_destroy(inst);
-	return res;
+	return false;
 }
 
 void relay_pipe_destroy(struct relay_pipe *inst)

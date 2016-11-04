@@ -8,8 +8,9 @@
 
 #if defined DEMO_relay_pipe
 
-static bool tap(struct relay_packet **packet)
+static bool tap(struct relay_packet **packet, void *misc)
 {
+	(void) misc;
 	struct relay_packet *p = *packet;
 	if (p->length > 5) {
 		fprintf(stderr, "TAP: Length=%lu, allowing\n", (long) p->length);
@@ -42,9 +43,9 @@ int main()
 	struct relay_client in;
 	struct relay_client out;
 	struct relay_pipe mid;
-	if (relay_client_init_fd(&in, NULL, pin.write) ||
-			relay_client_init_fd(&out, NULL, pout.read) ||
-			relay_pipe_init(&mid, pin.read, pout.write, tap)) {
+	if (!relay_client_init_fd(&in, NULL, pin.write, true) ||
+			!relay_client_init_fd(&out, NULL, pout.read, true) ||
+			!relay_pipe_init(&mid, pin.read, pout.write, true, tap, NULL)) {
 		fprintf(stderr, "Failed to create relay interfaces\n");
 		return 2;
 	}

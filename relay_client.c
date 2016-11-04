@@ -229,7 +229,7 @@ bool relay_client_send_text(struct relay_client *self, const char *type, const c
 	return relay_client_send_packet(self, type, endpoint, text, strlen(text));
 }
 
-bool relay_client_send_packet(struct relay_client *self, const char *type, const char *endpoint, const char *data, const size_t length)
+bool relay_client_send_packet(struct relay_client *self, const char *type, const char *endpoint, const void *data, const size_t length)
 {
 	struct relay_packet p;
 	relay_make_packet(&p, type, endpoint, (char *) data, length);

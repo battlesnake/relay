@@ -85,7 +85,7 @@ void relay_client_destroy(struct relay_client *self);
 bool relay_client_send_text(struct relay_client *self, const char *type, const char *endpoint, const char *text);
 
 /* Constructs a packet from the given type/endpoint/data and sends it */
-bool relay_client_send_packet(struct relay_client *self, const char *type, const char *endpoint, const char *data, const size_t length);
+bool relay_client_send_packet(struct relay_client *self, const char *type, const char *endpoint, const void *data, const size_t length);
 
 /* Serialises a packet and sends it (sender name in packet is not altered) */
 bool relay_client_send_packet2(struct relay_client *self, const struct relay_packet *packet);

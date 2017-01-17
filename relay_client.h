@@ -91,7 +91,7 @@ bool relay_client_send_packet(struct relay_client *self, const char *type, const
 bool relay_client_send_packet2(struct relay_client *self, const struct relay_packet *packet);
 
 /* Sends a serialised packet (sender name in packet is not altered) */
-bool relay_client_send_packet3(struct relay_client *self, const struct relay_packet_serial *packet, const size_t total_length);
+bool relay_client_send_packet3(struct relay_client *self, const struct relay_packet_serial *packet, size_t total_length);
 
 
 /* Various ways to receive a packet */

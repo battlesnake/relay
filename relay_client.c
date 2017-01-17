@@ -246,8 +246,11 @@ bool relay_client_send_packet2(struct relay_client *self, const struct relay_pac
 	return res;
 }
 
-bool relay_client_send_packet3(struct relay_client *self, const struct relay_packet_serial *packet, const size_t total_length)
+bool relay_client_send_packet3(struct relay_client *self, const struct relay_packet_serial *packet, size_t total_length)
 {
+	if (total_length == 0) {
+		total_length = sizeof(*packet) + ntohl(packet->header.length);
+	}
 	if (total_length > self->mtu) {
 		self->failed |= RCF_SEND_TOO_LARGE;
 		debug_log("Attempted to send packet larger (%lu) than client MTU (%lu)\n", (long) total_length, (long) self->mtu);

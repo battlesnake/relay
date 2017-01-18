@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 'use strict';
 
 const net = require('net');
@@ -33,11 +34,15 @@ function Server(opts) {
 		const onPacket = packet => {
 			const targets = clients.get(packet.remote);
 			if (process.env.LOG_PACKETS) {
-				console.log(`Packet of type ${packet.type} from ${client.getName()} to ${packet.remote} (x${[...targets].length})`);
+				const real_origin = client.getName();
+				const claim_origin = packet.local;
+				const local = real_origin === claim_origin ? real_origin : `${real_origin} ("${claim_origin}")`;
+				console.log(`Packet of type ${packet.type} from ${local} to ${packet.remote} (x${[...targets].length})`);
 			}
+			packet.local = packet.remote;
 			packet.remote = client.getName();
-			for (let target of targets) {
-				target.send(packet);
+			for (const remote of targets) {
+				remote.send(packet);
 			}
 		};
 

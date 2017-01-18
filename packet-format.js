@@ -2,12 +2,16 @@ const EventEmitter = require('eventemitter');
 const ByteStream = require('byte-stream');
 
 const TYPE_LEN = 4;
-const NAME_LEN = 8;
+const ENDPOINT_NAME_LEN = 8;
 const LENGTH_LEN = 4;
 
+const TARGET_LEN = ENDPOINT_NAME_LEN;
+const ORIGIN_LEN = ENDPOINT_NAME_LEN;
+
 const TYPE_OFFSET = 0;
-const NAME_OFFSET = TYPE_OFFSET + TYPE_LEN;
-const LENGTH_OFFSET = NAME_OFFSET + NAME_LEN;
+const TARGET_OFFSET = TYPE_OFFSET + TYPE_LEN;
+const ORIGIN_OFFSET = TARGET_OFFSET + TARGET_LEN;
+const LENGTH_OFFSET = ORIGIN_OFFSET + ORIGIN_LEN;
 const DATA_OFFSET = LENGTH_OFFSET + LENGTH_LEN;
 
 /* Read null-terminated ASCII string from buffer */
@@ -35,6 +39,7 @@ function Reader() {
 	const newPacket = () => ({
 		type: null,
 		remote: null,
+		local: null,
 		length: null,
 		data: null
 	});
@@ -57,11 +62,18 @@ function Reader() {
 			packet.type = read_str(buf);
 		}
 		if (packet.remote === null) {
-			const buf = stream.read(NAME_LEN);
+			const buf = stream.read(TARGET_LEN);
 			if (!buf) {
 				return false;
 			}
 			packet.remote = read_str(buf);
+		}
+		if (packet.local === null) {
+			const buf = stream.read(ORIGIN_LEN);
+			if (!buf) {
+				return false;
+			}
+			packet.local = read_str(buf);
 		}
 		if (packet.length === null) {
 			const buf = stream.read(LENGTH_LEN);
@@ -87,15 +99,19 @@ function Writer() {
 	EventEmitter.call(this);
 
 	const write = packet => {
-		let { type, remote, length = packet.data.length, data = null } = packet;
+		let { data = null } = packet;
+		const { type, remote, local, length = data.length } = packet;
 		if (typeof type !== 'string' || type.length > TYPE_LEN) {
-			throw new Error('Invalid packet type: ' + JSON.stringify(type));
+			throw new Error(`Invalid packet type: ${JSON.stringify(type)}`);
 		}
-		if (typeof remote !== 'string' || remote.length > NAME_LEN) {
-			throw new Error('Invalid packet remote: ' + JSON.stringify(remote));
+		if (typeof remote !== 'string' || remote.length > TARGET_LEN) {
+			throw new Error(`Invalid packet remote: ${JSON.stringify(remote)}`);
+		}
+		if (typeof local !== 'string' || local.length > ORIGIN_LEN) {
+			throw new Error(`Invalid packet local: ${JSON.stringify(local)}`);
 		}
 		if (typeof length !== 'number' || length < 0) {
-			throw new Error('Invalid packet length: ' + JSON.stringify(length));
+			throw new Error(`Invalid packet length: ${JSON.stringify(length)}`);
 		}
 		if (typeof data === 'string') {
 			data = Buffer.from(data);
@@ -109,7 +125,8 @@ function Writer() {
 		}
 		const buf = Buffer.alloc(DATA_OFFSET + length, 0);
 		write_str(buf, type, TYPE_OFFSET, TYPE_LEN);
-		write_str(buf, remote, NAME_OFFSET, NAME_LEN);
+		write_str(buf, remote, TARGET_OFFSET, TARGET_LEN);
+		write_str(buf, local, ORIGIN_OFFSET, ORIGIN_LEN);
 		buf.writeUInt32BE(length, LENGTH_OFFSET);
 		data.copy(buf, DATA_OFFSET);
 		this.emit('data', buf);

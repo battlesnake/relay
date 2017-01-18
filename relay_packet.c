@@ -3,25 +3,31 @@
 #include <stdlib.h>
 #include "relay_packet.h"
 
-struct relay_packet_serial *relay_make_serialised_packet(const char *type, const char *endpoint, const char *data, ssize_t length, size_t *out_size)
+struct relay_packet_serial *relay_make_serialised_packet(const char *type, const char *remote, const char *local, const char *data, ssize_t length, size_t *out_size)
 {
 	/* TODO: Optimised version which builds relay_packet_serial directly */
 	struct relay_packet packet;
-	relay_make_packet(&packet, type, endpoint, (char *) data, length);
+	relay_make_packet(&packet, type, remote, local, (char *) data, length);
 	return relay_serialise_packet(NULL, &packet, out_size);
 }
 
-void relay_make_packet(struct relay_packet *out, const char *type, const char *endpoint, char *data, ssize_t length)
+void relay_make_packet(struct relay_packet *out, const char *type, const char *remote, const char *local, char *data, ssize_t length)
 {
+	/* Type */
 	out->type[RELAY_TYPE_LENGTH] = 0;
 	strncpy(out->type, type, RELAY_TYPE_LENGTH);
-	out->endpoint[RELAY_ENDPOINT_LENGTH] = 0;
-	strncpy(out->endpoint, endpoint, RELAY_ENDPOINT_LENGTH);
-
+	/* Target */
+	out->remote[RELAY_ENDPOINT_LENGTH] = 0;
+	strncpy(out->remote, remote, RELAY_ENDPOINT_LENGTH);
+	/* Origin */
+	out->local[RELAY_ENDPOINT_LENGTH] = 0;
+	strncpy(out->local, local, RELAY_ENDPOINT_LENGTH);
+	/* Length */
 	if (length < 0) {
 		length = strlen(data);
 	}
 	out->length = length;
+	/* Data */
 	out->data = data;
 }
 
@@ -39,13 +45,14 @@ struct relay_packet_serial *relay_serialise_packet(struct relay_packet_serial *o
 	}
 
 	strncpy(out->header.type, in->type, RELAY_TYPE_LENGTH);
-	strncpy(out->header.endpoint, in->endpoint, RELAY_ENDPOINT_LENGTH);
+	strncpy(out->header.remote, in->remote, RELAY_ENDPOINT_LENGTH);
+	strncpy(out->header.local, in->local, RELAY_ENDPOINT_LENGTH);
 
 	out->header.length = htonl(in->length);
 	memcpy(out+1, in->data, in->length);
 	*out_size = out_len;
 
-	return (void *) out;
+	return out;
 }
 
 bool relay_deserialise_packet(struct relay_packet *out, struct relay_packet_serial *in, const size_t in_length)
@@ -56,15 +63,19 @@ bool relay_deserialise_packet(struct relay_packet *out, struct relay_packet_seri
 
 	out->type[RELAY_TYPE_LENGTH] = 0;
 	strncpy(out->type, in->header.type, RELAY_TYPE_LENGTH);
-	out->endpoint[RELAY_ENDPOINT_LENGTH] = 0;
-	strncpy(out->endpoint, in->header.endpoint, RELAY_ENDPOINT_LENGTH);
+
+	out->remote[RELAY_ENDPOINT_LENGTH] = 0;
+	strncpy(out->remote, in->header.remote, RELAY_ENDPOINT_LENGTH);
+
+	out->local[RELAY_ENDPOINT_LENGTH] = 0;
+	strncpy(out->local, in->header.local, RELAY_ENDPOINT_LENGTH);
 
 	out->length = ntohl(in->header.length);
 	out->data = in->data;
 	return in_length == (sizeof(*in) + out->length);
 }
 
-size_t relay_explode_packet(struct relay_packet *packet, char *type, char *endpoint, char *buf, size_t buf_size)
+size_t relay_explode_packet(struct relay_packet *packet, char *type, char *remote, char *local, char *buf, size_t buf_size)
 {
 	if (packet == NULL) {
 		return -1;
@@ -72,8 +83,11 @@ size_t relay_explode_packet(struct relay_packet *packet, char *type, char *endpo
 	if (type) {
 		strcpy(type, packet->type);
 	}
-	if (endpoint) {
-		strcpy(endpoint, packet->endpoint);
+	if (remote) {
+		strcpy(remote, packet->remote);
+	}
+	if (local) {
+		strcpy(local, packet->local);
 	}
 	if (buf) {
 		size_t bytes = packet->length + 1;
@@ -85,7 +99,7 @@ size_t relay_explode_packet(struct relay_packet *packet, char *type, char *endpo
 	return packet->length;
 }
 
-size_t relay_explode_serialised_packet(struct relay_packet_serial *packet, char *type, char *endpoint, char *buf, size_t buf_size)
+size_t relay_explode_serialised_packet(struct relay_packet_serial *packet, char *type, char *remote, char *local, char *buf, size_t buf_size)
 {
 	if (packet == NULL) {
 		return -1;
@@ -95,10 +109,15 @@ size_t relay_explode_serialised_packet(struct relay_packet_serial *packet, char 
 		memcpy(type, packet->header.type, len);
 		type[len] = 0;
 	}
-	if (endpoint) {
-		int len = strnlen(packet->header.endpoint, 4);
-		memcpy(endpoint, packet->header.endpoint, len);
-		endpoint[len] = 0;
+	if (remote) {
+		int len = strnlen(packet->header.remote, 4);
+		memcpy(remote, packet->header.remote, len);
+		remote[len] = 0;
+	}
+	if (local) {
+		int len = strnlen(packet->header.local, 4);
+		memcpy(local, packet->header.local, len);
+		local[len] = 0;
 	}
 	size_t length = ntohl(packet->header.length);
 	if (buf) {

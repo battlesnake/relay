@@ -26,7 +26,7 @@ static bool rca_socket_init(struct relay_client *self, const void *initargs)
 	setsockopt_nodelay(this->socket.fd);
 	setsockopt_keepalive(this->socket.fd);
 	/* Authenticate if name was provided */
-	if (self->name[0] && !relay_client_send_packet(self, "AUTH", "", self->name, -1)) {
+	if (self->local[0] && !relay_client_send_packet(self, "AUTH", "", self->local, -1)) {
 		return false;
 	}
 	return true;
@@ -161,37 +161,37 @@ static bool relay_client_read(struct relay_client *self, void *buf, size_t lengt
 
 /* Convenience constructors */
 
-bool relay_client_init_socket(struct relay_client *self, const char *name, const char *addr, const uint16_t port)
+bool relay_client_init_socket(struct relay_client *self, const char *local, const char *addr, const uint16_t port)
 {
 	struct relay_client_socket_data args = {
 		.addr = addr,
 		.port = port
 	};
-	return relay_client_init(self, name, &relay_client_socket_adapter, &args);
+	return relay_client_init(self, local, &relay_client_socket_adapter, &args);
 }
 
-bool relay_client_init_fd(struct relay_client *self, const char *name, int fd, bool owns)
+bool relay_client_init_fd(struct relay_client *self, const char *local, int fd, bool owns)
 {
 	struct relay_client_fd_data args = {
 		.fd = fd,
 		.owns = owns
 	};
-	return relay_client_init(self, name, &relay_client_fd_adapter, &args);
+	return relay_client_init(self, local, &relay_client_fd_adapter, &args);
 }
 
 /* Life-cycle */
 
-bool relay_client_init(struct relay_client *self, const char *name, const struct relay_client_adapter *adapter, const void *args)
+bool relay_client_init(struct relay_client *self, const char *local, const struct relay_client_adapter *adapter, const void *args)
 {
 	/* Zero-init */
 	memset(self, 0, sizeof(*self));
 	/* Copy name in, if one was provided */
-	if (name != NULL) {
-		int len = strnlen(name, RELAY_ENDPOINT_LENGTH + 1);
+	if (local != NULL) {
+		int len = strnlen(local, RELAY_ENDPOINT_LENGTH + 1);
 		if (len == RELAY_ENDPOINT_LENGTH + 1) {
 			goto fail;
 		}
-		memcpy(self->name, name, len);
+		memcpy(self->local, local, len);
 	}
 	/* Other config */
 	self->mtu = relay_client_mtu;
@@ -224,15 +224,15 @@ void relay_client_destroy(struct relay_client *self)
 
 /* Writing */
 
-bool relay_client_send_text(struct relay_client *self, const char *type, const char *endpoint, const char *text)
+bool relay_client_send_text(struct relay_client *self, const char *type, const char *remote, const char *text)
 {
-	return relay_client_send_packet(self, type, endpoint, text, strlen(text));
+	return relay_client_send_packet(self, type, remote, text, strlen(text));
 }
 
-bool relay_client_send_packet(struct relay_client *self, const char *type, const char *endpoint, const void *data, const size_t length)
+bool relay_client_send_packet(struct relay_client *self, const char *type, const char *remote, const void *data, const size_t length)
 {
 	struct relay_packet p;
-	relay_make_packet(&p, type, endpoint, (char *) data, length);
+	relay_make_packet(&p, type, remote, self->local, (char *) data, length);
 	return relay_client_send_packet2(self, &p);
 }
 
@@ -352,10 +352,10 @@ struct relay_packet *relay_client_recv_packet(struct relay_client *self)
 	return &tuple->p;
 }
 
-ssize_t relay_client_recv_data(struct relay_client *self, char *type, char *endpoint, char *buf, size_t buf_size)
+ssize_t relay_client_recv_data(struct relay_client *self, char *type, char *remote, char *local, char *buf, size_t buf_size)
 {
 	struct relay_packet_serial *packet = relay_client_recv_serialised_packet(self);
-	ssize_t res = relay_explode_serialised_packet(packet, type, endpoint, buf, buf_size);
+	ssize_t res = relay_explode_serialised_packet(packet, type, remote, local, buf, buf_size);
 	free(packet);
 	return res;
 }

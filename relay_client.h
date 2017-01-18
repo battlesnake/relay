@@ -27,7 +27,7 @@ struct relay_client_adapter;
 
 struct relay_client {
 	/* Name of this endpoint */
-	char name[RELAY_ENDPOINT_LENGTH + 1];
+	char local[RELAY_ENDPOINT_LENGTH + 1];
 	/* Buffer for receiving packet header */
 	bool has_header;
 	struct relay_packet_serial_hdr hdr;
@@ -67,10 +67,10 @@ struct relay_client_adapter {
 /*
  * Constructor
  *
- * "name" is name to authenticate as.
+ * "local" is name to authenticate as.
  * Can be NULL to skip authentication.
  */
-bool relay_client_init(struct relay_client *self, const char *name, const struct relay_client_adapter *adapter, const void *args);
+bool relay_client_init(struct relay_client *self, const char *local, const struct relay_client_adapter *adapter, const void *args);
 
 /* Destructor */
 void relay_client_destroy(struct relay_client *self);
@@ -82,10 +82,10 @@ void relay_client_destroy(struct relay_client *self);
  * Packet payload is contents of NULL-terminated string "text", sent without the
  * null terminator (which is added implicitly anyway by recv_packet).
  */
-bool relay_client_send_text(struct relay_client *self, const char *type, const char *endpoint, const char *text);
+bool relay_client_send_text(struct relay_client *self, const char *type, const char *remote, const char *text);
 
 /* Constructs a packet from the given type/endpoint/data and sends it */
-bool relay_client_send_packet(struct relay_client *self, const char *type, const char *endpoint, const void *data, const size_t length);
+bool relay_client_send_packet(struct relay_client *self, const char *type, const char *remote, const void *data, const size_t length);
 
 /* Serialises a packet and sends it (sender name in packet is not altered) */
 bool relay_client_send_packet2(struct relay_client *self, const struct relay_packet *packet);
@@ -112,7 +112,7 @@ struct relay_packet_serial *relay_client_recv_serialised_packet(struct relay_cli
  *
  * Returns -1 on error.
  */
-ssize_t relay_client_recv_data(struct relay_client *self, char *type, char *endpoint, char *buf, size_t buf_size);
+ssize_t relay_client_recv_data(struct relay_client *self, char *type, char *remote, char *local, char *buf, size_t buf_size);
 
 
 /*** Some useful adapters ***/
@@ -127,7 +127,7 @@ struct relay_client_socket_data {
 
 extern const struct relay_client_adapter relay_client_socket_adapter;
 
-bool relay_client_init_socket(struct relay_client *self, const char *name, const char *addr, const uint16_t port);
+bool relay_client_init_socket(struct relay_client *self, const char *local, const char *addr, const uint16_t port);
 
 
 /* File-desciptor adapter */
@@ -139,4 +139,4 @@ struct relay_client_fd_data {
 
 extern const struct relay_client_adapter relay_client_fd_adapter;
 
-bool relay_client_init_fd(struct relay_client *self, const char *name, int fd, bool owns);
+bool relay_client_init_fd(struct relay_client *self, const char *local, int fd, bool owns);

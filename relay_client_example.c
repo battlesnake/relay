@@ -49,13 +49,13 @@ int main(int argc, char *argv[])
 		}
 		if (strncmp(p->type, "DATA", 4) == 0) {
 			fprintf(stderr, "ECHO sent\n");
-			if (!relay_client_send_packet(&client, "ECHO", p->endpoint, p->data, p->length)) {
+			if (!relay_client_send_packet(&client, "ECHO", p->remote, p->data, p->length)) {
 				fprintf(stderr, "Send failed\n");
 				relay_client_destroy(&client);
 				return 3;
 			}
 		}
-		fprintf(stderr, "Packet of type '%s' received from <%s>: %s\n", p->type, p->endpoint, p->data);
+		fprintf(stderr, "Packet of type '%s' received to <%s> from <%s>: %s\n", p->type, p->local, p->remote, p->data);
 		free(p);
 	}
 	return 0;

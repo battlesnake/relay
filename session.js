@@ -16,8 +16,10 @@ function Session(socket, opts) {
 	let state = Session.STATE_CONNECTING;
 	let name = null;
 
-	let reader = new packetFormat.Reader();
-	let writer = new packetFormat.Writer();
+	const reader = new packetFormat.Reader();
+	const writer = new packetFormat.Writer();
+
+	let authTimer;
 
 	const close = () => {
 		const closing = state !== Session.STATE_CLOSED;
@@ -53,11 +55,15 @@ function Session(socket, opts) {
 			return authFailed();
 		}
 		const _name = packet.data.toString('ascii');
+		if (_name !== packet.local) {
+			this.emit('error', `Name does not match local: "${_name}" != "${packet.local}"`);
+			return authFailed();
+		}
 		if (!opts.nameValidator(_name)) {
 			this.emit('error', `Invalid name: "${_name}"`);
 			return authFailed();
 		}
-		authCompleted(_name);
+		return authCompleted(_name);
 	};
 
 	const dispatch = packet => this.emit('data', packet);
@@ -66,11 +72,11 @@ function Session(socket, opts) {
 		switch (state) {
 		case Session.STATE_CONNECTING: return login(packet);
 		case Session.STATE_OPEN: return dispatch(packet);
-		default: return;
 		}
+		return null;
 	};
 
-	let authTimer = setTimeout(authFailed, NAME_TIMEOUT);
+	authTimer = setTimeout(authTimeout, NAME_TIMEOUT);
 
 	socket.on('data', buf => reader.write(buf));
 	reader.on('data', onData);

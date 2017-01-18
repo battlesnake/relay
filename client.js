@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 'use strict';
 
 const net = require('net');
@@ -19,14 +20,14 @@ function Client(opts) {
 
 	opts = _.defaults({}, opts, defaultOpts);
 
-	if (typeof opts.endpoint !== 'string' || !opts.endpoint.length) {
-		throw new Error('Invalid endpoint name');
+	if (typeof opts.local !== 'string' || !opts.local.length) {
+		throw new Error('Invalid local name');
 	}
 
 	const socket = new net.Socket();
 
-	let reader = new packetFormat.Reader();
-	let writer = new packetFormat.Writer();
+	const reader = new packetFormat.Reader();
+	const writer = new packetFormat.Writer();
 
 	let closing = false;
 
@@ -40,7 +41,7 @@ function Client(opts) {
 	};
 
 	socket.connect(opts.port, opts.server, () => {
-		writer.write({ type: 'AUTH', remote: '', data: opts.endpoint });
+		writer.write({ type: 'AUTH', local: opts.local, remote: '', data: opts.local });
 		this.emit('open');
 	});
 
@@ -62,20 +63,21 @@ function Client(opts) {
 if (!module.parent) {
 	const server = process.env.SERVER || 'localhost';
 	const port = +process.env.PORT || 49501;
-	const endpoint = 'echo';
-	const client = new Client({ server, port, endpoint });
+	const local = 'echo';
+	const client = new Client({ server, port, local });
 	client.on('info', console.info);
 	client.on('error', console.error);
 	client.on('open', () => {
-		client.write({ type: 'DATA', remote: 'echo', data: 'hello world' });
-		console.info(`  [SEND] echo request`);
+		client.write({ type: 'DATA', local, remote: 'echo', data: 'hello world' });
+		console.info('  [SEND] echo request');
 	});
 	client.on('data', packet => {
-		if (packet.type === 'DATA') {
-			client.write({ type: 'ECHO', remote: packet.remote, data: packet.data });
-			console.info(`  [ECHO] remote="${packet.remote}"`);
+		const { type, local, remote } = packet;
+		if (type === 'DATA') {
+			client.write({ type: 'ECHO', local: remote, remote: local, data: packet.data });
+			console.info(`  [ECHO] remote="${local}"`);
 		} else {
-			console.info(`  [RECV] type="${packet.type}" remote="${packet.remote}" data="${packet.data.toString()}"`);
+			console.info(`  [RECV] type="${packet.type}" local="${local}" remote="${remote}" data="${packet.data.toString()}"`);
 		}
 	});
 }

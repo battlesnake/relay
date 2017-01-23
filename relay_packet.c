@@ -15,13 +15,19 @@ void relay_make_packet(struct relay_packet *out, const char *type, const char *r
 {
 	/* Type */
 	out->type[RELAY_TYPE_LENGTH] = 0;
-	strncpy(out->type, type, RELAY_TYPE_LENGTH);
+	if (type) {
+		strncpy(out->type, type, RELAY_TYPE_LENGTH);
+	}
 	/* Target */
 	out->remote[RELAY_ENDPOINT_LENGTH] = 0;
-	strncpy(out->remote, remote, RELAY_ENDPOINT_LENGTH);
+	if (remote) {
+		strncpy(out->remote, remote, RELAY_ENDPOINT_LENGTH);
+	}
 	/* Origin */
 	out->local[RELAY_ENDPOINT_LENGTH] = 0;
-	strncpy(out->local, local, RELAY_ENDPOINT_LENGTH);
+	if (local) {
+		strncpy(out->local, local, RELAY_ENDPOINT_LENGTH);
+	}
 	/* Length */
 	if (length < 0) {
 		length = strlen(data);

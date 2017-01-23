@@ -13,7 +13,9 @@ module.exports = Server;
 
 const defaultOpts = {
 	nameValidator: name => /^\w[\w\d]{3,}$/.test(name),
-	port: 49501
+	port: 49501,
+	keepAliveInterval: 10000,
+	noDelay: true
 };
 
 Server.prototype = new EventEmitter();
@@ -26,8 +28,8 @@ function Server(opts) {
 
 	const accept = socket => {
 
-		socket.setKeepAlive(true, 10000);
-		socket.setNoDelay(true);
+		socket.setKeepAlive(!!opts.keepAliveInterval, opts.keepAliveInterval);
+		socket.setNoDelay(!!opts.noDelay);
 
 		const client = new Session(socket, opts);
 
@@ -73,9 +75,9 @@ function Server(opts) {
 
 if (!module.parent) {
 	const host = process.env.HOST || '0.0.0.0';
-	const port = +process.env.PORT || 49501;
+	const port = +process.env.PORT || defaultOpts.port;
 	const server = new Server(port, host);
 	server.on('listening', () => console.log(`Listening on ${host}:${port}`));
 	server.on('info', console.info);
-	server.on('error', err => process.env.DEBUG ? console.error(err) : console.error('ERROR: ' + err.message));
+	server.on('error', err => process.env.DEBUG ? console.error(err) : console.error(`ERROR: ${err.message}`));
 }

@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #define RELAY_TYPE_LENGTH 4
-#define RELAY_ENDPOINT_LENGTH 8
+#define RELAY_ENDPOINT_LENGTH 16
 
 /* Contains pointers to data, does not store inside the struct */
 struct relay_packet {

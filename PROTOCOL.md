@@ -18,9 +18,9 @@ Simple packet broadcasting server
 
 ## Packet format:
 
-	Field	Bytes	Type	Description
-	Type	4	char[4]	Packet type
-	Target	8	char[8]	Terminal endpoint name (null-padded)
-	Origin	8	char[8]	Originating endpoint name (null-padded)
-	Length	4	u32	N = Payload length (unsigned 32-bit integer)
-	Data	N	u8[N]	Payload
+	Field	Bytes	Type		Description
+	Type	4	char[4]		Packet type
+	Target	16	char[16]	Terminal endpoint name (null-padded)
+	Origin	16	char[16]	Originating endpoint name (null-padded)
+	Length	4	u32		N = Payload length (unsigned 32-bit integer)
+	Data	N	u8[N]		Payload

@@ -12,7 +12,7 @@ const SessionList = require('./session-list');
 module.exports = Server;
 
 const defaultOpts = {
-	nameValidator: name => /^\w[\w\d]{3,}$/.test(name),
+	nameValidator: name => /^\w[\w\d:]+$/.test(name),
 	port: 49501,
 	keepAliveInterval: 10000,
 	noDelay: true
@@ -28,8 +28,12 @@ function Server(opts) {
 
 	const accept = socket => {
 
+		const addr = `${socket.remoteAddress}:${socket.remotePort}`;
+
 		socket.setKeepAlive(!!opts.keepAliveInterval, opts.keepAliveInterval);
 		socket.setNoDelay(!!opts.noDelay);
+
+		console.log(`Connection received from ${addr}`);
 
 		const client = new Session(socket, opts);
 
@@ -50,12 +54,12 @@ function Server(opts) {
 
 		const onOpen = () => {
 			clients.add(client);
-			this.emit('info', `Registering client ${client.getName()}`);
+			this.emit('info', `Registering client ${client.getName()} at ${addr}`);
 		};
 
 		const onClose = () => {
 			clients.remove(client);
-			this.emit('info', `Unregistering client ${client.getName()}`);
+			this.emit('info', `Unregistering client ${client.getName()} at ${addr}`);
 		};
 
 		client.on('open', onOpen);
@@ -79,5 +83,5 @@ if (!module.parent) {
 	const server = new Server(port, host);
 	server.on('listening', () => console.log(`Listening on ${host}:${port}`));
 	server.on('info', console.info);
-	server.on('error', err => process.env.DEBUG ? console.error(err) : console.error(`ERROR: ${err.message}`));
+	server.on('error', err => process.env.DEBUG ? console.error(err) : console.error(`ERROR: ${err.message || err}`));
 }

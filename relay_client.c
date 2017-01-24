@@ -106,7 +106,7 @@ static bool rca_fd_recv(struct relay_client *self, void *buf, size_t length)
 	char *ptr = buf;
 	while (length) {
 		ssize_t bytes = read(this->fd, ptr, length);
-		if (bytes == -1 || bytes == 0) {
+		if ((bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) || bytes == 0) {
 			return false;
 		}
 		length -= bytes;

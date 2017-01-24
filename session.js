@@ -51,16 +51,16 @@ function Session(socket, opts) {
 
 	const login = packet => {
 		if (packet.type !== 'AUTH' || packet.remote.length) {
-			this.emit('error', 'Invalid authentication packet');
+			this.emit('error', new Error('Invalid authentication packet'));
 			return authFailed();
 		}
 		const _name = packet.data.toString('ascii');
 		if (_name !== packet.local) {
-			this.emit('error', `Name does not match local: "${_name}" != "${packet.local}"`);
+			this.emit('error', new Error(`Name does not match local: "${_name}" != "${packet.local}"`));
 			return authFailed();
 		}
 		if (!opts.nameValidator(_name)) {
-			this.emit('error', `Invalid name: "${_name}"`);
+			this.emit('error', new Error(`Invalid name: "${_name}"`));
 			return authFailed();
 		}
 		return authCompleted(_name);

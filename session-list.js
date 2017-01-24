@@ -2,7 +2,7 @@ const wildcard_to_regexp = require('./wildcard_to_regexp');
 
 module.exports = SessionList;
 
-const wildcard_rx = /\*\?/;
+const wildcard_rx = /[\*\?]/;
 
 function SessionList() {
 	const lists = new Map();

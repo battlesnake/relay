@@ -2,7 +2,7 @@ const EventEmitter = require('eventemitter');
 const ByteStream = require('byte-stream');
 
 const TYPE_LEN = 4;
-const ENDPOINT_NAME_LEN = 8;
+const ENDPOINT_NAME_LEN = 16;
 const LENGTH_LEN = 4;
 
 const TARGET_LEN = ENDPOINT_NAME_LEN;

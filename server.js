@@ -120,7 +120,7 @@ function Server(opts) {
 	const server = net.createServer(accept);
 	server.on('listening', () => this.emit('listening'));
 
-	server.listen(opts.port);
+	server.listen(opts.port, opts.host);
 }
 
 if (!module.parent) {

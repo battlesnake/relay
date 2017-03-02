@@ -81,6 +81,10 @@ function Reader() {
 			packet.foreign = (length & FOREIGN_BIT) !== 0;
 			packet.length = length & ~FOREIGN_BIT;
 		}
+		if (packet.length < 0) {
+			console.error('Negative packet length');
+			return false;
+		}
 		const buf = packet.length ? stream.read(packet.length) : new Buffer([]);
 		if (!buf) {
 			return false;

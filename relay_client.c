@@ -67,12 +67,33 @@ static void rca_fd_destroy_int(struct relay_client *self, struct rca_fd_data *th
 	}
 }
 
+static bool again()
+{
+	return errno == EAGAIN || errno == EWOULDBLOCK;
+}
+
+static bool poll_one(int fd, int event) {
+	struct pollfd pfd = { .fd = fd, .events = event, .revents = 0 };
+	while (poll(&pfd, 1, -1) != 1) {
+		// Block
+	}
+	return (pfd.revents & event) && !(pfd.revents & POLLERR);
+}
+
 static bool rca_fd_send_int(struct rca_fd_data *this, const void *buf, size_t length)
 {
 	const char *ptr = buf;
 	while (length) {
+		errno = 0;
 		ssize_t bytes = write(this->fd, ptr, length);
-		if (bytes == -1 || bytes == 0) {
+		if (again()) {
+			if (!poll_one(this->fd, POLLOUT)) {
+				log_error("poll", "%d, POLLOUT", this->fd);
+				return false;
+			}
+			continue;
+		}
+		if (bytes == -1) {
 			log_error("Failed to send %zu bytes on fd (%d)", length, errno);
 			return false;
 		}
@@ -96,17 +117,24 @@ static bool rca_fd_recv_int(struct rca_fd_data *this, void *buf, size_t length)
 	while (length) {
 		errno = 0;
 		ssize_t bytes = read(this->fd, ptr, length);
-		if (bytes > 0) {
-			length -= bytes;
-			ptr += bytes;
-		} else if (bytes == 0) {
-			/* EOF */
-			log_sysfail("read", "%d, ..., %zu", this->fd, length);
-			return false;
-		} else {
+		if (again()) {
+			if (!poll_one(this->fd, POLLIN)) {
+				log_error("poll", "%d, POLLIN", this->fd);
+				return false;
+			}
+			continue;
+		}
+		if (bytes == -1) {
 			log_error("Failed to read %zu bytes on fd (%d)", length, errno);
 			return false;
+		} else if (bytes == 0) {
+			/* EOF */
+			/* log_sysfail("read", "%d, ..., %zu", this->fd, length); */
+			log_debug("EOF fd=%d read_len=%zu", this->fd, length);
+			return false;
 		}
+		length -= bytes;
+		ptr += bytes;
 	}
 	return true;
 }

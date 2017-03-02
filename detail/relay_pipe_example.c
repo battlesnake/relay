@@ -4,9 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "relay_packet.h"
-#include "relay_client.h"
-#include "relay_pipe.h"
+#include "../relay_packet.h"
+#include "../relay_client.h"
+#include "../relay_pipe.h"
 
 static bool tap(struct relay_packet **packet, void *misc)
 {

@@ -11,7 +11,7 @@ const packetFormat = require('./packet-format');
 module.exports = Client;
 
 const defaultOpts = {
-	port: 49501
+	port: 3031
 };
 
 Client.prototype = new EventEmitter();

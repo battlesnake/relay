@@ -3,7 +3,7 @@ sources := $(wildcard *.c) $(shell find c_modules -name '*.c' -and -not -name '*
 examples := $(patsubst %.c, %, $(wildcard detail/*_example.c))
 
 export HOST := ::1
-export PORT := 49591
+export PORT := 13031
 
 .PHONY: clean tags demo demo0 demo1 demo2 demo3 demo4 demo5
 

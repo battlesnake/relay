@@ -26,7 +26,7 @@ const isAsciiBuffer = buf => {
 
 const defaultOpts = {
 	nameValidator: name => /^\w[\w\d:]+$/.test(name),
-	port: 49501,
+	port: 3031,
 	keepAliveInterval: 10000,
 	noDelay: true,
 	dumpPackets: false

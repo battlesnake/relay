@@ -63,7 +63,7 @@ int main()
 		return 5;
 	}
 	struct relay_packet *p;
-	if (!(p = relay_client_recv_packet(&out))) {
+	if (!relay_client_recv_packet(&out, &p) || p == NULL) {
 		fprintf(stderr, "Failed to receive\n");
 		return 6;
 	}
@@ -72,7 +72,7 @@ int main()
 		return 6;
 	}
 	free(p);
-	if (!(p = relay_client_recv_packet(&out))) {
+	if (!relay_client_recv_packet(&out, &p) || p == NULL) {
 		fprintf(stderr, "Failed to receive\n");
 		return 7;
 	}

@@ -54,7 +54,11 @@ int main(int argc, char *argv[])
 		if (f) {
 			fprintf(stderr, "-");
 		}
-		struct relay_packet *p = relay_client_recv_packet(&rc);
+		struct relay_packet *p;
+		if (!relay_client_recv_packet(&rc, &p) || p == NULL) {
+			log_error("Failed to receive packet");
+			return 5;
+		}
 		if (p->length != sizeof(buf) || memcmp(p->data, buf, sizeof(buf)) != 0) {
 			log_error("incorrect data received");
 			return 4;

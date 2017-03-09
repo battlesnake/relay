@@ -13,8 +13,6 @@
 #include "../relay_packet.h"
 #include "../relay_client.h"
 
-static struct relay_client client;
-
 int main(int argc, char *argv[])
 {
 	if (argc < 8) {
@@ -43,6 +41,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Packet type name is too long\n");
 		return 1;
 	}
+	struct relay_client client;
 	if (!relay_client_init_socket(&client, local, addr, port) != 0) {
 		fprintf(stderr, "Failed to connect to %s:%s\n", addr, port);
 		return 2;
@@ -57,15 +56,19 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Packet sent to %s: %s\n", remote, argv[i]);
 	}
 	while (true) {
-		struct relay_packet *p = relay_client_recv_packet(&client);
-		if (p == NULL) {
+		struct relay_packet *p;
+		if (!relay_client_recv_packet(&client, &p)) {
 			fprintf(stderr, "Receive failed\n");
 			relay_client_destroy(&client);
 			return 3;
 		}
+		if (p == NULL) {
+			break;
+		}
 		fprintf(stderr, "Packet of type '%s' received to <%s> from <%s>: %s\n", p->type, p->local, p->remote, p->data);
 		free(p);
 	}
+	relay_client_destroy(&client);
 	return 0;
 }
 #endif

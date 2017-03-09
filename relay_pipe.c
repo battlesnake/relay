@@ -32,9 +32,12 @@ static void *pipe_thread(struct relay_pipe *inst)
 			break;
 		}
 
-		struct relay_packet *packet = relay_client_recv_packet(&inst->reader);
-		if (!packet) {
+		struct relay_packet *packet;
+		if (!relay_client_recv_packet(&inst->reader, &packet)) {
 			log_debug("Pipe failed to receive packet");
+			break;
+		}
+		if (!packet) {
 			break;
 		}
 		if (!inst->tap || inst->tap(&packet, inst->misc)) {

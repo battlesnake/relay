@@ -41,10 +41,16 @@ struct relay_client {
 
 /* Adapter interface specification */
 
+enum rca_recv_result {
+	rcarr_success = 0,
+	rcarr_fail = 1,
+	rcarr_eof = 2
+};
+
 typedef bool relay_client_adapter_init(struct relay_client *self, const void *initargs);
 typedef void relay_client_adapter_destroy(struct relay_client *self);
 typedef bool relay_client_adapter_send(struct relay_client *self, const void *buf, size_t length);
-typedef bool relay_client_adapter_recv(struct relay_client *self, void *buf, size_t length);
+typedef enum rca_recv_result relay_client_adapter_recv(struct relay_client *self, void *buf, size_t length);
 
 struct relay_client_adapter {
 	relay_client_adapter_init *init;
@@ -53,7 +59,6 @@ struct relay_client_adapter {
 	relay_client_adapter_recv *recv;
 	size_t instdata_size;
 };
-
 
 /* Fail bits */
 
@@ -98,9 +103,11 @@ bool relay_client_send_packet3(struct relay_client *self, const struct relay_pac
  * Receives a packet.
  *
  * Not re-entrant, call only from one thread unless protected by mutex.
+ *
+ * Returns false on error, true with *out == NULL on EOF
  */
-struct relay_packet *relay_client_recv_packet(struct relay_client *self);
-struct relay_packet_serial *relay_client_recv_serialised_packet(struct relay_client *self);
+bool relay_client_recv_packet(struct relay_client *self, struct relay_packet **out);
+bool relay_client_recv_serialised_packet(struct relay_client *self, struct relay_packet_serial **out);
 
 /*
  * Uses recv_packet, explodes packet - any of type/endpoint/buf may be NULL.
@@ -108,9 +115,9 @@ struct relay_packet_serial *relay_client_recv_serialised_packet(struct relay_cli
  * Returns length of packet payload even if buf was NULL or was too small to
  * receive the complete payload.
  *
- * Returns -1 on error.
+ * Returns false on error, returns true with buf_length == -1 on EOF.
  */
-ssize_t relay_client_recv_data(struct relay_client *self, char *type, char *remote, char *local, char *buf, size_t buf_size);
+bool relay_client_recv_data(struct relay_client *self, char *type, char *remote, char *local, char *buf, size_t buf_size, ssize_t *buf_length);
 
 
 /*** Some useful adapters ***/

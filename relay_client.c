@@ -17,8 +17,8 @@ static bool relay_authenticate(struct relay_client *self)
 		log_error("Failed to send authentication packet");
 		return false;
 	}
-	struct relay_packet *rp = relay_client_recv_packet(self);
-	if (!rp) {
+	struct relay_packet *rp;
+	if (!relay_client_recv_packet(self, &rp) || rp == NULL) {
 		log_error("Failed to receive authentication response packet");
 		return false;
 	}
@@ -102,7 +102,7 @@ static bool rca_fd_send_int(struct rca_fd_data *this, const void *buf, size_t le
 	return fsync(this->fd) == 0 || errno == EINVAL;
 }
 
-static bool rca_fd_recv_int(struct rca_fd_data *this, void *buf, size_t length)
+static enum rca_recv_result rca_fd_recv_int(struct rca_fd_data *this, void *buf, size_t length)
 {
 #if defined DEBUG_VERBOSE_relay
 	int waiting;
@@ -114,24 +114,24 @@ static bool rca_fd_recv_int(struct rca_fd_data *this, void *buf, size_t length)
 		errno = 0;
 		ssize_t bytes = read(this->fd, ptr, length);
 		if (again(bytes)) {
-			if (!poll_one(this->fd, POLLIN)) {
-				log_error("poll", "%d, POLLIN", this->fd);
-				return false;
+			if (!poll_one(this->fd, POLLIN | POLLHUP)) {
+				log_error("poll", "%d, POLLIN | POLLHUP", this->fd);
+				return rcarr_fail;
 			}
 			continue;
 		} else if (bytes == -1) {
 			log_error("Failed to read %zu bytes on fd (%d)", length, errno);
-			return false;
+			return rcarr_fail;
 		} else if (bytes == 0) {
 			/* EOF */
 			/* log_sysfail("read", "%d, ..., %zu", this->fd, length); */
 			log_debug("EOF fd=%d read_len=%zu", this->fd, length);
-			return false;
+			return rcarr_eof;
 		}
 		length -= bytes;
 		ptr += bytes;
 	}
-	return true;
+	return rcarr_success;
 }
 
 static bool rca_fd_init(struct relay_client *self, const void *initargs)
@@ -149,7 +149,7 @@ static bool rca_fd_send(struct relay_client *self, const void *buf, size_t lengt
 	return rca_fd_send_int(self->data, buf, length);
 }
 
-static bool rca_fd_recv(struct relay_client *self, void *buf, size_t length)
+static enum rca_recv_result rca_fd_recv(struct relay_client *self, void *buf, size_t length)
 {
 	return rca_fd_recv_int(self->data, buf, length);
 }
@@ -221,7 +221,7 @@ static bool rca_socket_send(struct relay_client *self, const void *buf, size_t l
 #endif
 }
 
-static bool rca_socket_recv(struct relay_client *self, void *buf, size_t length)
+static enum rca_recv_result rca_socket_recv(struct relay_client *self, void *buf, size_t length)
 {
 	struct rca_socket_data *this = self->data;
 #if defined RCA_SOCKET_USE_FD
@@ -229,13 +229,13 @@ static bool rca_socket_recv(struct relay_client *self, void *buf, size_t length)
 #else
 	if (!socket_client_peek(&this->socket, buf, length)) {
 		log_error("Failed to wait/peek %zu bytes on socket (%d)", length, errno);
-		return false;
+		return rcarr_fail;
 	}
 	if (!socket_client_recv(&this->socket, buf, length)) {
 		log_error("Failed to receive %zu bytes on socket (%d)", length, errno);
-		return false;
+		return rcarr_fail;
 	}
-	return true;
+	return rcarr_success;
 #endif
 }
 
@@ -265,17 +265,17 @@ static bool relay_client_write(struct relay_client *self, const void *buf, const
 	return res;
 }
 
-static bool relay_client_read(struct relay_client *self, void *buf, size_t length)
+static enum rca_recv_result relay_client_read(struct relay_client *self, void *buf, size_t length)
 {
 	if (self->failed) {
 		log_error("Attempted to read from relay client while in failed state");
 		return false;
 	}
-	bool res = self->adapter->recv(self, buf, length);
-	if (res) {
-		log_debug("Read %zu bytes", length);
-	} else {
-		log_error("Read failed (errno=%d, bytes=%zu)", errno, length);
+	enum rca_recv_result res = self->adapter->recv(self, buf, length);
+	switch (res) {
+	case rcarr_success: log_debug("Read %zu bytes", length); break;
+	case rcarr_eof: log_debug("EOF While reading %zu bytes", length); break;
+	case rcarr_fail: log_error("Read failed (errno=%d, bytes=%zu)", errno, length); break;
 	}
 	return res;
 }
@@ -390,17 +390,25 @@ bool relay_client_send_packet3(struct relay_client *self, const struct relay_pac
 
 /* Reading */
 
-static ssize_t relay_client_read_hdr(struct relay_client *self)
+static enum rca_recv_result relay_client_read_hdr(struct relay_client *self, size_t *datalen)
 {
-	if (!self->has_header) {
-		log_debug("Reading header");
-		if (!relay_client_read(self, &self->hdr, sizeof(self->hdr))) {
-			log_error("Failed to read relay packet header (%d)", errno);
-			return -1;
-		}
-		self->has_header = true;
+	if (self->has_header) {
+		*datalen = ntohl(self->hdr.length);
+		return rcarr_success;
 	}
-	return ntohl(self->hdr.length);
+	log_debug("Reading header");
+	switch (relay_client_read(self, &self->hdr, sizeof(self->hdr))) {
+	case rcarr_fail:
+		log_error("Failed to read relay packet header (%d)", errno);
+		return rcarr_fail;
+	case rcarr_eof:
+		return rcarr_eof;
+	case rcarr_success:
+		break;
+	}
+	self->has_header = true;
+	*datalen = ntohl(self->hdr.length);
+	return rcarr_success;
 }
 
 static bool relay_client_read_payload(struct relay_client *self, struct relay_packet_serial *ps)
@@ -411,21 +419,34 @@ static bool relay_client_read_payload(struct relay_client *self, struct relay_pa
 	}
 	log_debug("Reading payload");
 	const size_t length = ntohl(self->hdr.length);
-	if (length > 0 && !relay_client_read(self, ps->data, length)) {
+	enum rca_recv_result res = length ? relay_client_read(self, ps->data, length) : rcarr_success;
+	switch (res) {
+	case rcarr_eof:
+		log_error("Unexpected EOF");
+		/* Fall through */
+	case rcarr_fail:
 		log_error("Failed to read relay packet payload (%d)", errno);
 		return false;
+	case rcarr_success:
+		break;
 	}
 	self->has_header = false;
 	memcpy(ps, &self->hdr, sizeof(self->hdr));
 	return true;
 }
 
-struct relay_packet_serial *relay_client_recv_serialised_packet(struct relay_client *self)
+bool relay_client_recv_serialised_packet(struct relay_client *self, struct relay_packet_serial **out)
 {
-	ssize_t data_length = relay_client_read_hdr(self);
-	if (data_length == -1) {
+	size_t data_length;
+	*out = NULL;
+	switch (relay_client_read_hdr(self, &data_length)) {
+	case rcarr_fail:
 		log_error("Failed to read raw packet header (%d)", errno);
-		return NULL;
+		return false;
+	case rcarr_eof:
+		return true;
+	case rcarr_success:
+		break;
 	}
 	struct relay_packet_serial *ps;
 	size_t in_length = sizeof(self->hdr) + data_length;
@@ -433,7 +454,7 @@ struct relay_packet_serial *relay_client_recv_serialised_packet(struct relay_cli
 	if (in_length > self->mtu) {
 		self->failed |= RCF_RECV_TOO_LARGE;
 		log_error("Attempted to receive packet larger (%zu) than client MTU (%zu)", in_length, self->mtu);
-		return NULL;
+		return false;
 	}
 	/* Add extra byte for null-terminator */
 	size_t alloc_length = sizeof(*ps) + data_length + 1;
@@ -443,17 +464,24 @@ struct relay_packet_serial *relay_client_recv_serialised_packet(struct relay_cli
 	if (!relay_client_read_payload(self, ps)) {
 		free(ps);
 		log_error("Failed to read raw packet payload (%d)", errno);
-		return NULL;
+		return false;
 	}
-	return ps;
+	*out = ps;
+	return true;
 }
 
-struct relay_packet *relay_client_recv_packet(struct relay_client *self)
+bool relay_client_recv_packet(struct relay_client *self, struct relay_packet **out)
 {
-	ssize_t data_length = relay_client_read_hdr(self);
-	if (data_length == -1) {
+	size_t data_length;
+	*out = NULL;
+	switch (relay_client_read_hdr(self, &data_length)) {
+	case rcarr_eof:
+		return true;
+	case rcarr_fail:
 		log_error("Failed to read packet header (%d)", errno);
-		return NULL;
+		return false;
+	case rcarr_success:
+		break;
 	}
 	/*
 	 * Deserialised packet points to buffers in serialised packet, so
@@ -473,7 +501,7 @@ struct relay_packet *relay_client_recv_packet(struct relay_client *self)
 	if (in_length > self->mtu) {
 		self->failed |= RCF_RECV_TOO_LARGE;
 		log_error("Attempted to receive packet larger (%zu) than client MTU (%zu)", in_length, self->mtu);
-		return NULL;
+		return false;
 	}
 	/* Add extra byte for null-terminator */
 	size_t alloc_length = sizeof(*tuple) + data_length + 1;
@@ -483,16 +511,31 @@ struct relay_packet *relay_client_recv_packet(struct relay_client *self)
 	if (!relay_client_read_payload(self, &tuple->ps)) {
 		log_error("Failed to read packet payload (%d)", errno);
 		free(tuple);
-		return NULL;
+		return false;
 	}
 	relay_deserialise_packet(&tuple->p, &tuple->ps, in_length);
-	return &tuple->p;
+	*out = &tuple->p;
+	return true;
 }
 
-ssize_t relay_client_recv_data(struct relay_client *self, char *type, char *remote, char *local, char *buf, size_t buf_size)
+bool relay_client_recv_data(struct relay_client *self, char *type, char *remote, char *local, char *buf, size_t buf_size, ssize_t *buf_length)
 {
-	struct relay_packet_serial *packet = relay_client_recv_serialised_packet(self);
+	struct relay_packet_serial *packet;
+	*buf_length = -1;
+	if (!relay_client_recv_serialised_packet(self, &packet)) {
+		log_error("Failed to receive data");
+		return false;
+	}
+	if (packet == NULL) {
+		log_debug("EOF");
+		return true;
+	}
 	ssize_t res = relay_explode_serialised_packet(packet, type, remote, local, buf, buf_size);
+	if (res == -1) {
+		log_error("Failed to receive data");
+		return false;
+	}
 	free(packet);
-	return res;
+	*buf_length = res;
+	return true;
 }

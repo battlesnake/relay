@@ -13,8 +13,6 @@
 #include "../relay_packet.h"
 #include "../relay_client.h"
 
-static struct relay_client client;
-
 int main(int argc, char *argv[])
 {
 	if (argc < 4) {
@@ -28,6 +26,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Invalid port: %s\n", argv[2]);
 		return 1;
 	}
+	struct relay_client client;
 	if (!relay_client_init_socket(&client, name, addr, port) != 0) {
 		fprintf(stderr, "Failed to connect to %s:%s\n", addr, port);
 		return 2;
@@ -41,11 +40,14 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Packet sent: %s\n", argv[i]);
 	}
 	while (true) {
-		struct relay_packet *p = relay_client_recv_packet(&client);
-		if (p == NULL) {
+		struct relay_packet *p;
+		if (!relay_client_recv_packet(&client, &p)) {
 			fprintf(stderr, "Receive failed\n");
 			relay_client_destroy(&client);
 			return 3;
+		}
+		if (p == NULL) {
+			break;
 		}
 		if (strncmp(p->type, "DATA", 4) == 0) {
 			fprintf(stderr, "ECHO sent\n");
@@ -58,6 +60,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Packet of type '%s' received to <%s> from <%s>: %s\n", p->type, p->local, p->remote, p->data);
 		free(p);
 	}
+	relay_client_destroy(&client);
 	return 0;
 }
 #endif

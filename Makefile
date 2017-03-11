@@ -81,5 +81,6 @@ demo5:
 	node server
 
 deploy:
+	npm install
 	tar --exclude-vcs --exclude-vcs-ignores --exclude Makefile -cz . | \
 		connect relay-deploy 'sudo ~relay/deploy.sh'

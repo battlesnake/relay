@@ -42,7 +42,7 @@ function Session(socket, opts) {
 
 	const authCompleted = _name => {
 		name = _name;
-		state = 1;
+		state = Session.STATE_OPEN;
 		clearTimeout(authTimer);
 		authTimer = null;
 		this.send({ local: name, remote: '', type: 'AUTH', data: '' });
@@ -81,7 +81,12 @@ function Session(socket, opts) {
 	socket.on('data', buf => reader.write(buf));
 	reader.on('data', onData);
 
-	this.send = packet => writer.write(packet);
+	this.send = packet => {
+		if (state === Session.STATE_OPEN) {
+			writer.write(packet);
+		}
+	};
+
 	writer.on('data', buf => socket.write(buf, 'utf8', err => {
 		if (err) {
 			this.emit('error', err);
@@ -90,6 +95,7 @@ function Session(socket, opts) {
 	}));
 
 	socket.on('close', close);
+
 	socket.on('error', err => {
 		this.emit('error', err);
 		close();

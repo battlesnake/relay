@@ -11,6 +11,7 @@
   "license": "UNLICENSED",
   "dependencies": {
     "byte-stream": "github:battlesnake/byte-stream",
+    "component": "github:battlesnake/componentjs",
     "eventemitter": "github:battlesnake/eventemitter",
     "lodash": "^4.16.4"
   }

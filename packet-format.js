@@ -1,4 +1,4 @@
-const EventEmitter = require('eventemitter');
+const Component = require('component');
 const ByteStream = require('byte-stream');
 
 const TYPE_LEN = 4;
@@ -33,9 +33,9 @@ module.exports.Reader = Reader;
 module.exports.Writer = Writer;
 
 /* Basically an asynchronous fold over the input stream */
-Reader.prototype = new EventEmitter();
+Reader.prototype = new Component();
 function Reader() {
-	EventEmitter.call(this);
+	Component.call(this, 'Packet reader', true);
 
 	const stream = new ByteStream();
 
@@ -49,6 +49,8 @@ function Reader() {
 	});
 
 	let packet = newPacket();
+
+	/* TODO: Make ByteStream a Component and clear its buffer on close */
 
 	const readPacket = () => {
 		if (packet.type === null) {
@@ -82,7 +84,7 @@ function Reader() {
 			packet.length = length & ~FOREIGN_BIT;
 		}
 		if (packet.length < 0) {
-			console.error('Negative packet length');
+			this.warn({ msg: 'Negative packet length' });
 			return false;
 		}
 		const buf = packet.length ? stream.read(packet.length) : new Buffer([]);
@@ -104,9 +106,9 @@ function Reader() {
 	this.write = buf => stream.write(buf);
 }
 
-Writer.prototype = new EventEmitter();
+Writer.prototype = new Component();
 function Writer() {
-	EventEmitter.call(this);
+	Component.call(this, 'Packet writer', true);
 
 	const write = packet => {
 		let { data } = packet;

@@ -1,10 +1,16 @@
+const Component = require('component');
+const Session = require('./session');
+
 const wildcard_to_regexp = require('./wildcard_to_regexp');
 
 module.exports = SessionList;
 
 const wildcard_rx = /[*?]/;
 
+SessionList.prototype = new Component();
 function SessionList() {
+	Component.call(this, 'Session list', true);
+
 	const lists = new Map();
 	/* Get by regular expression */
 	const get_rx = pattern => [...lists.keys()]
@@ -26,24 +32,48 @@ function SessionList() {
 		if (list.size === 0) {
 			lists.delete(name);
 		}
+		client.close();
 	};
-	/* Add new client */
-	const add = client => {
+	/* Called when a client is ready */
+	const on_client_ready = client => {
 		const name = client.getName();
 		if (name === null) {
-			throw new Error('Attempted to register client with no name');
+			this.warn({ msg: 'Attempted to register client with no name' });
+			client.close();
+			return;
 		}
 		if (wildcard_rx.test(name)) {
-			throw new Error('Attempted to register client with wildcards in name');
+			this.warn({ msg: 'Attempted to register client with wildcards in name' });
+			client.close();
+			return;
 		}
 		if (!lists.has(name)) {
 			lists.set(name, new Set([client]));
 		} else {
 			lists.get(name).add(client);
 		}
-		client.on('close', () => remove(client));
+		this.$on(client, 'close', () => remove(client));
+		this.info({ msg: `Registering client ${name} at ${client.getAddr()}` });
 	};
+	/* Called when a client closes */
+	const on_client_close = client => {
+		if (client.getName()) {
+			this.info({ msg: `Unregistering client ${client.getName()} at ${client.getAddr()}` });
+		} else {
+			this.info({ msg: `Unregistered connection ${client.getAddr()} terminated by remote` });
+		}
+	};
+	/* Bind a client but do not add to list */
+	const create = (socket, opts) => {
+		const client = new Session(socket, opts);
+		this.bind(client, true);
+		this.$on(client, 'close', () => on_client_close(client));
+		client.wait_for_ready().then(() => on_client_ready(client));
+		return client;
+	};
+
+	this.create = create;
 	this.get = get;
-	this.add = add;
 	this.remove = remove;
+	this.$on(this, 'close', () => lists.clear());
 }

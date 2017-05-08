@@ -6,9 +6,8 @@ const started = +new Date();
 
 const net = require('net');
 const _ = require('lodash');
-const EventEmitter = require('eventemitter');
+const Component = require('component');
 
-const Session = require('./session');
 const SessionList = require('./session-list');
 
 module.exports = Server;
@@ -32,13 +31,14 @@ const defaultOpts = {
 	dumpPackets: false
 };
 
-Server.prototype = new EventEmitter();
+Server.prototype = new Component();
 function Server(opts) {
-	EventEmitter.call(this);
+	Component.call(this, 'Relay server', false);
 
 	opts = _.defaults({}, opts, defaultOpts);
 
 	const clients = new SessionList();
+	this.bind(clients);
 
 	const accept = socket => {
 
@@ -49,11 +49,11 @@ function Server(opts) {
 
 		console.log(`Connection received from ${addr}`);
 
-		const client = new Session(socket, opts);
+		const client = clients.create(socket, opts);
 
-		const onPacket = packet => {
+		const on_packet_received = packet => {
 			if (packet.type === 'AUTH') {
-				this.emit('debug', `Client ${client.getName()} at ${addr} attempted to send an AUTH packet`);
+				this.warn({ msg: `Client ${client.getName()} at ${addr} attempted to send an AUTH packet` });
 				client.close();
 				return;
 			}
@@ -62,7 +62,7 @@ function Server(opts) {
 			const to = packet.remote;
 			const via = client.getName();
 			if (packet.foreign) {
-				this.emit('debug', `Not forwarding packet of type '${packet.type}' from '${via}' to '${packet.remote}' as it is marked as foreign`);
+				this.warn({ msg: `Not forwarding packet of type '${packet.type}' from '${via}' to '${packet.remote}' as it is marked as foreign` });
 				return;
 			}
 			const targets = _([...clients.get(to)])
@@ -71,6 +71,7 @@ function Server(opts) {
 				.value();
 			/* Re-address packet for relaying */
 			packet.remote = client.getName();
+console.log(client.getName(), '->', to, packet.type, targets.length);
 			for (const recipient of targets) {
 				packet.local = recipient.getName();
 				recipient.send(packet);
@@ -88,37 +89,14 @@ function Server(opts) {
 			}
 		};
 
-		const onOpen = () => {
-			try {
-				clients.add(client);
-			} catch (err) {
-				console.error(`Failed to register client ${client.getName()} at ${addr}: ${err && err.message || err || '<unknown>'}`);
-				client.close();
-				return;
-			}
-			this.emit('info', `Registering client ${client.getName()} at ${addr}`);
-		};
-
-		const onClose = () => {
-			clients.remove(client);
-			if (client.getName()) {
-				this.emit('info', `Unregistering client ${client.getName()} at ${addr}`);
-			} else {
-				this.emit('info', `Unregistered connection ${addr} terminated by remote`);
-			}
-		};
-
-		client.on('open', onOpen);
-		client.on('close', onClose);
-
-		client.on('data', onPacket);
-
-		client.on('error', error => this.emit('error', error));
-		client.on('info', info => this.emit('info', info));
+		this.$on(client, 'data', on_packet_received);
 	};
 
 	const server = net.createServer(accept);
-	server.on('listening', () => this.emit('listening'));
+	this.$on(server, 'listening', () => {
+		this.$component.ready();
+		this.emit('listening');
+	});
 
 	server.listen(opts.port, opts.host);
 }
@@ -128,7 +106,20 @@ if (!module.parent) {
 	const port = +process.env.PORT || defaultOpts.port;
 	const server = new Server({ port, host, dumpPackets: !!process.env.DUMP });
 	server.on('listening', () => console.log(`Listening on ${host}:${port}`));
-	server.on('info', console.info);
+	server.on('info', ({ msg }) => console.info(msg));
+	server.on('warn', ({ msg }) => console.warn(msg));
 	server.on('error', err => process.env.DEBUG ? console.error(err) : console.error(`ERROR: ${err && err.message || err || '<unknown>'}`));
 	server.on('debug', s => console.info(((+new Date() - started) / 1000).toFixed(3) + '\t ' + s));
+
+	process.on('SIGHUP', () => {
+		console.log([
+			'',
+			'******************',
+			'* Component tree *',
+			'******************',
+			'',
+			Component.tree(server, { highlight: null, ready: true }),
+			''
+		].join('\n'));
+	});
 }

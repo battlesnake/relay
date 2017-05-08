@@ -13,36 +13,38 @@
 #include "../relay_packet.h"
 #include "../relay_client.h"
 
+#define log(fmt, ...) fprintf(stderr, fmt "\n", ##__VA_ARGS__)
+
 int main(int argc, char *argv[])
 {
 	if (argc < 4) {
-		fprintf(stderr, "Syntax: %s <addr> <port> <name> [initial-message]\n", argv[0]);
+		log("Syntax: %s <addr> <port> <name> [initial-message]", argv[0]);
 		return 1;
 	}
 	const char *addr = argv[1];
 	const char *port = argv[2];
 	const char *name = argv[3];
 	if (port == 0) {
-		fprintf(stderr, "Invalid port: %s\n", argv[2]);
+		log("Invalid port: %s", argv[2]);
 		return 1;
 	}
 	struct relay_client client;
 	if (!relay_client_init_socket(&client, name, addr, port) != 0) {
-		fprintf(stderr, "Failed to connect to %s:%s\n", addr, port);
+		log("Failed to connect to %s:%s", addr, port);
 		return 2;
 	}
 	for (int i = 4; i < argc; i++) {
 		if (!relay_client_send_packet(&client, "DATA", "echo", argv[i], -1)) {
-			fprintf(stderr, "Send failed\n");
+			log("Send failed");
 			relay_client_destroy(&client);
 			return 3;
 		}
-		fprintf(stderr, "Packet sent: %s\n", argv[i]);
+		log("Packet sent to 'echo': %s", argv[i]);
 	}
 	while (true) {
 		struct relay_packet *p;
 		if (!relay_client_recv_packet(&client, &p)) {
-			fprintf(stderr, "Receive failed\n");
+			log("Receive failed");
 			relay_client_destroy(&client);
 			return 3;
 		}
@@ -50,14 +52,14 @@ int main(int argc, char *argv[])
 			break;
 		}
 		if (strncmp(p->type, "DATA", 4) == 0) {
-			fprintf(stderr, "ECHO sent\n");
+			log("(packet echoed)");
 			if (!relay_client_send_packet(&client, "ECHO", p->remote, p->data, p->length)) {
-				fprintf(stderr, "Send failed\n");
+				log("Send failed");
 				relay_client_destroy(&client);
 				return 3;
 			}
 		}
-		fprintf(stderr, "Packet of type '%s' received to <%s> from <%s>: %s\n", p->type, p->local, p->remote, p->data);
+		log("Packet of type '%s' received at <%s> from <%s>: %s", p->type, p->local, p->remote, p->data);
 		free(p);
 	}
 	relay_client_destroy(&client);

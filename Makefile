@@ -62,12 +62,13 @@ demo3: demo
 
 demo4: demo
 	@echo -e '\e[32;1mWildcard\x1b[22m - Three clients select between four echo targets using wildcards\e[0m'
-	$(call run_split, Senders, 1.5, ( \
+# TODO: fix why do we need the outer shell and quoted command?  It breaks if using {} or () without being wrapped in another shell
+	$(call run_split, Senders, 1.5, sh -c '( \
 		./detail/relay_client_example.out $(HOST) $(PORT) red:one 2>&1 | xargs -I{} printf "\e[91mred:one: {}\e[0m\n" & \
 		./detail/relay_client_example.out $(HOST) $(PORT) red:two 2>&1 | xargs -I{} printf "\e[31;4mred:two: {}\e[0m\n" & \
 		./detail/relay_client_example.out $(HOST) $(PORT) yellow:one 2>&1 | xargs -I{} printf "\e[93myellow:one: {}\e[0m\n" & \
 		./detail/relay_client_example.out $(HOST) $(PORT) yellow:two 2>&1 | xargs -I{} printf "\e[33;4myellow:two: {}\e[0m\n" & \
-	wait ) )
+	wait )' )
 	$(call run_split, reds, 1, ./detail/relay_client_send_example.out $(HOST) $(PORT) 1 senderA "red:*" DATA "All reds")
 	$(call run_split, ones, 1, ./detail/relay_client_send_example.out $(HOST) $(PORT) 1 senderB "*:one" DATA "All ones")
 	$(call run_split, *w*, 1, ./detail/relay_client_send_example.out $(HOST) $(PORT) 1 senderC "*w*" DATA "All containing \"w\"")

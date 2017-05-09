@@ -84,4 +84,4 @@ demo5:
 deploy:
 	npm install
 	tar --exclude-vcs --exclude-vcs-ignores --exclude Makefile -cz . | \
-		connect relay-deploy 'sudo ~relay/deploy.sh'
+		ssh relay@relay.open-cosmos.com 'sudo ~relay/deploy.sh'

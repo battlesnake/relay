@@ -63,12 +63,12 @@ function Session(socket, opts) {
 		this.info({ msg: `${addr} authenticated as "${name}"` });
 		this.$component.rename(`Session for "${name}" @ ${addr}`);
 		this.$component.ready();
-		process.nextTick(() => {
+		setTimeout(() => {
 			this.emit('open');
 			set_state(Session.STATE_OPEN);
 			tx_queue.flush();
 			tx_queue.close();
-		});
+		}, 500);
 	};
 
 	const on_try_auth = packet => {

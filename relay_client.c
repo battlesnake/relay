@@ -18,14 +18,18 @@ static bool relay_authenticate(struct relay_client *self)
 		return false;
 	}
 	struct relay_packet *rp;
-	if (!relay_client_recv_packet(self, &rp) || rp == NULL) {
-		log_error("Failed to receive authentication response packet");
-		return false;
-	}
-	if (strncmp(rp->type, "AUTH", RELAY_ENDPOINT_LENGTH) != 0) {
-		free(rp);
-		log_error("Invalid authentication response packet (type='%s')", rp->type);
-		return false;
+	while (true) {
+		if (!relay_client_recv_packet(self, &rp) || rp == NULL) {
+			log_error("Failed to receive authentication response packet");
+			return false;
+		}
+		if (strncmp(rp->type, "AUTH", RELAY_ENDPOINT_LENGTH) != 0) {
+			free(rp);
+			//log_error("Invalid authentication response packet (type='%s')", rp->type);
+			//return false;
+		} else {
+			break;
+		}
 	}
 	free(rp);
 	return true;

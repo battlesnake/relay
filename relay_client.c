@@ -45,7 +45,6 @@ static bool rca_fd_init_int(struct relay_client *self, struct rca_fd_data *this,
 	}
 	this->fd = args->fd;
 	this->owns_fd = args->owns;
-	fcntl(this->fd, F_SETFL, fcntl(this->fd, F_GETFL) & ~O_NONBLOCK);
 	struct stat ss;
 	if (fstat(this->fd, &ss) == 0 && S_ISSOCK(ss.st_mode)) {
 		log_debug("Configuring socket interface");

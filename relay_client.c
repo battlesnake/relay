@@ -46,6 +46,7 @@ static bool rca_fd_init_int(struct relay_client *self, struct rca_fd_data *this,
 	this->fd = args->fd;
 	this->owns_fd = args->owns;
 	struct stat ss;
+	fcntl(this->fd, F_SETFL, fcntl(this->fd, F_GETFL) | O_NONBLOCK);
 	if (fstat(this->fd, &ss) == 0 && S_ISSOCK(ss.st_mode)) {
 		log_debug("Configuring socket interface");
 		setsockopt_nodelay(this->fd);
@@ -72,20 +73,17 @@ static bool again(ssize_t res)
 	return res == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK);
 }
 
-static bool poll_one(int fd, int event) {
+static int poll_one(int fd, int event) {
+	errno = 0;
 	struct pollfd pfd = { .fd = fd, .events = event, .revents = 0 };
-	do {
-		errno = 0;
-	} while (poll(&pfd, 1, 1000) == 0 || errno == EINTR);
-	return (pfd.revents & event) && !(pfd.revents & POLLERR);
+	return poll(&pfd, 1, -1) == 1 || errno == EAGAIN;
 }
 
 static bool rca_fd_send_int(struct rca_fd_data *this, const void *buf, size_t length)
 {
-	const char *ptr = buf;
-	while (length) {
+	for (size_t done = 0; done < length; ) {
 		errno = 0;
-		ssize_t bytes = write(this->fd, ptr, length);
+		ssize_t bytes = write(this->fd, buf + done, length - done);
 		if (again(bytes)) {
 			if (!poll_one(this->fd, POLLOUT)) {
 				log_error("poll", "%d, POLLOUT", this->fd);
@@ -96,8 +94,7 @@ static bool rca_fd_send_int(struct rca_fd_data *this, const void *buf, size_t le
 			log_error("Failed to send %zu bytes on fd (%d)", length, errno);
 			return false;
 		}
-		length -= bytes;
-		ptr += bytes;
+		done += bytes;
 	}
 	return fsync(this->fd) == 0 || errno == EINVAL;
 }
@@ -109,12 +106,11 @@ static enum rca_recv_result rca_fd_recv_int(struct rca_fd_data *this, void *buf,
 	ioctl(this->fd, FIONREAD, &waiting);
 	log_debug_v("Reading %zu bytes (%u available)", length, waiting);
 #endif
-	char *ptr = buf;
-	while (length) {
+	for (size_t done = 0; done < length; ) {
 		errno = 0;
-		ssize_t bytes = read(this->fd, ptr, length);
+		ssize_t bytes = read(this->fd, buf + done, length - done);
 		if (again(bytes)) {
-			if (!poll_one(this->fd, POLLIN | POLLHUP)) {
+			if (!poll_one(this->fd, POLLIN)) {
 				log_error("poll", "%d, POLLIN | POLLHUP", this->fd);
 				return rcarr_fail;
 			}
@@ -128,8 +124,7 @@ static enum rca_recv_result rca_fd_recv_int(struct rca_fd_data *this, void *buf,
 			log_debug("EOF fd=%d read_len=%zu", this->fd, length);
 			return rcarr_eof;
 		}
-		length -= bytes;
-		ptr += bytes;
+		done += bytes;
 	}
 	return rcarr_success;
 }

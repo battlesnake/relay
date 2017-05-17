@@ -1,13 +1,20 @@
 sources := $(wildcard *.c) $(shell find c_modules -name '*.c' -and -not -name '*_example.c')
 
+progs := relay_send
+
 examples := $(patsubst %.c, %, $(wildcard detail/*_example.c))
 
 export HOST := ::1
 export PORT := 13031
 
-.PHONY: clean tags demo demo0 demo1 demo2 demo3 demo4 demo5
+.PHONY: clean tags demo demo0 demo1 demo2 demo3 demo4 demo5 progs
 
 demo: $(examples:%=%.out)
+
+progs: $(progs)
+
+$(progs): %: %.c $(sources)
+	gcc -std=gnu99 -g -O2 -lpthread -Ic_modules -DSIMPLE_LOGGING -Wall -Werror -Wextra -Dprog_$@ -o $@ $^
 
 detail/%.out: detail/%.c $(sources)
 	gcc -std=gnu99 -g -O0 -lpthread -Ic_modules -DDEMO_$(*F:%_example=%) -DSIMPLE_LOGGING -Wall -Werror -Wextra -o $@ $^

@@ -47,11 +47,11 @@ function Session(socket, opts) {
 	this.$on(tx_queue, 'flush', writer.write);
 
 	const on_auth_timeout = () => {
-		this.emit('error', new Error('Authentication timeout'));
+		this.warn(new Error('Authentication timeout'));
 	};
 
 	const on_auth_failed = () => {
-		this.emit('error', new Error('Authentication failed'));
+		this.warn(new Error('Authentication failed'));
 	};
 
 	const on_auth_completed = _name => {
@@ -73,16 +73,16 @@ function Session(socket, opts) {
 
 	const on_try_auth = packet => {
 		if (packet.type !== 'AUTH' || packet.remote.length) {
-			this.emit('error', new Error('Invalid authentication packet'));
+			this.warn(new Error('Invalid authentication packet'));
 			return on_auth_failed();
 		}
 		const _name = packet.data.toString('ascii');
 		if (_name !== packet.local) {
-			this.emit('error', new Error(`Name does not match local: "${_name}" != "${packet.local}"`));
+			this.warn(new Error(`Name does not match local: "${_name}" != "${packet.local}"`));
 			return on_auth_failed();
 		}
 		if (!opts.nameValidator(_name)) {
-			this.emit('error', new Error(`Invalid name: "${_name}"`));
+			this.warn(new Error(`Invalid name: "${_name}"`));
 			return on_auth_failed();
 		}
 		return on_auth_completed(_name);

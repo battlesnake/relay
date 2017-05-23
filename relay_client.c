@@ -58,7 +58,7 @@ static bool rca_fd_init_int(struct relay_client *self, struct rca_fd_data *this,
 	}
 	/* Authenticate if fd is backed by a socket */
 	if (args->auth_needed && !relay_authenticate(self)) {
-		log_error("Failed to authenticate with fd#%d (%d)", this->fd, errno);
+		log_error("Failed to authenticate with fd#%d (%s)", this->fd, strerror(errno));
 		return false;
 	}
 	return true;
@@ -95,7 +95,7 @@ static bool rca_fd_send_int(struct rca_fd_data *this, const void *buf, size_t le
 			}
 			continue;
 		} else if (bytes == -1) {
-			log_error("Failed to send %zu bytes on fd (%d)", length, errno);
+			log_error("Failed to send %zu bytes on fd (%s)", length, strerror(errno));
 			return false;
 		}
 		done += bytes;
@@ -120,7 +120,7 @@ static enum rca_recv_result rca_fd_recv_int(struct rca_fd_data *this, void *buf,
 			}
 			continue;
 		} else if (bytes == -1) {
-			log_error("Failed to read %zu bytes on fd (%d)", length, errno);
+			log_error("Failed to read %zu bytes on fd (%s)", length, strerror(errno));
 			return rcarr_fail;
 		} else if (bytes == 0) {
 			/* EOF */
@@ -180,7 +180,7 @@ static bool rca_socket_init(struct relay_client *self, const void *initargs)
 	fstr_init_ref(&addr, args->addr);
 	fstr_init_ref(&port, args->port);
 	if (!socket_client_init(&this->socket, &addr, &port, NULL)) {
-		log_error("Failed to connect to relay socket " PRIfs ":" PRIfs " (%d)", prifs(&addr), prifs(&port), errno);
+		log_error("Failed to connect to relay socket " PRIfs ":" PRIfs " (%s)", prifs(&addr), prifs(&port), strerror(errno));
 		return false;
 	}
 #if defined RCA_SOCKET_USE_FD
@@ -194,7 +194,7 @@ static bool rca_socket_init(struct relay_client *self, const void *initargs)
 	setsockopt_nodelay(this->socket.fd);
 	setsockopt_keepalive(this->socket.fd);
 	if (!relay_authenticate(self)) {
-		log_error("Failed to authenticate with " PRIfs ":" PRIfs " (%d)", prifs(&addr), prifs(&port), errno);
+		log_error("Failed to authenticate with " PRIfs ":" PRIfs " (%s)", prifs(&addr), prifs(&port), strerror(errno));
 		return false;
 	}
 #endif
@@ -227,11 +227,11 @@ static enum rca_recv_result rca_socket_recv(struct relay_client *self, void *buf
 	return rca_fd_recv_int(&this->fd, buf, length);
 #else
 	if (!socket_client_peek(&this->socket, buf, length)) {
-		log_error("Failed to wait/peek %zu bytes on socket (%d)", length, errno);
+		log_error("Failed to wait/peek %zu bytes on socket (%s)", length, strerror(errno));
 		return rcarr_fail;
 	}
 	if (!socket_client_recv(&this->socket, buf, length)) {
-		log_error("Failed to receive %zu bytes on socket (%d)", length, errno);
+		log_error("Failed to receive %zu bytes on socket (%s)", length, strerror(errno));
 		return rcarr_fail;
 	}
 	return rcarr_success;

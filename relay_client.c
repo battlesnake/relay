@@ -50,7 +50,6 @@ static bool rca_fd_init_int(struct relay_client *self, struct rca_fd_data *this,
 	this->fd = args->fd;
 	this->owns_fd = args->owns;
 	struct stat ss;
-	fcntl(this->fd, F_SETFL, fcntl(this->fd, F_GETFL, 0) | O_NONBLOCK);
 	if (fstat(this->fd, &ss) == 0 && S_ISSOCK(ss.st_mode)) {
 		log_debug("Configuring socket interface");
 		setsockopt_nodelay(this->fd);

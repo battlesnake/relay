@@ -73,7 +73,7 @@ static void rca_fd_destroy_int(struct relay_client *self, struct rca_fd_data *th
 
 static bool again(ssize_t res)
 {
-	return res == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK);
+	return res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK);
 }
 
 static int poll_one(int fd, int event) {

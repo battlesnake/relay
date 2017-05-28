@@ -71,7 +71,6 @@ function Server(opts) {
 				.value();
 			/* Re-address packet for relaying */
 			packet.remote = client.getName();
-console.log(client.getName(), '->', to, packet.type, targets.length);
 			for (const recipient of targets) {
 				packet.local = recipient.getName();
 				recipient.send(packet);

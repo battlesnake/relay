@@ -48,10 +48,12 @@ function Session(socket, opts) {
 
 	const on_auth_timeout = () => {
 		this.warn(new Error('Authentication timeout'));
+		this.close();
 	};
 
 	const on_auth_failed = () => {
 		this.warn(new Error('Authentication failed'));
+		this.close();
 	};
 
 	const on_auth_completed = _name => {

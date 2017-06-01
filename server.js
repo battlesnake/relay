@@ -75,6 +75,17 @@ function Server(opts) {
 				packet.local = recipient.getName();
 				recipient.send(packet);
 			}
+			/* Identification packet, also used to test connection */
+			if (packet.type === 'KES' && to === '*') {
+				const ident = {
+					type: 'NIMI',
+					local: '',
+					remote: client.getName(),
+					data: Buffer.from('Name=Server\0Description=Relay server\0')
+				};
+				client.send(ident);
+			}
+			/* Dump */
 			if (opts.dumpPackets) {
 				/* Note: packet remote/local have been altered by this point */
 				this.emit('debug', `Packet of type "${packet.type}" from "${from}" ${via === from ? '' : `(via "${via}") `}to ${targets.length ? targets.map(c => `"${c.getName()}"`).join(', ') : `"${to}" (nowhere)`}`);
